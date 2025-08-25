@@ -30,6 +30,18 @@ export const DEMO_CONFIG = {
       classroom: "608",
       date: new Date().toISOString().split('T')[0],
       status: 'active'
+    },
+    {
+      sessionId: "demo_session_3", 
+      subject: "Structural Analysis",
+      department: "CE",
+      semester: "4",
+      division: "CE 1",
+      lectureType: "lecture",
+      timeSlot: "10:10 to 11:10",
+      classroom: "608",
+      date: new Date().toISOString().split('T')[0],
+      status: 'active'
     }
   ],
   
@@ -46,6 +58,12 @@ export const DEMO_CONFIG = {
       name: "Jane Smith",
       department: "CSE",
       semester: "5"
+    },
+    {
+      email: "student3@charusat.edu.in", 
+      name: "Mike Johnson",
+      department: "CE",
+      semester: "4"
     }
   ],
   
@@ -60,6 +78,11 @@ export const DEMO_CONFIG = {
       email: "teacher2@charusat.edu.in",
       name: "Prof. Jane Doe", 
       department: "CSE"
+    },
+    {
+      email: "teacher3@charusat.edu.in",
+      name: "Prof. Robert Wilson", 
+      department: "CE"
     }
   ],
   

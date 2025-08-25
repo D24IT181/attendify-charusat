@@ -97,11 +97,7 @@ export const TakeAttendance = () => {
   const departments = [
     "IT",
     "CSE",
-    "CE",
-    "ME",
-    "Civil Engineering",
-    "ECE",
-    "EE"
+    "CE"
   ];
 
   const divisionOptions = formData.department
@@ -116,7 +112,7 @@ export const TakeAttendance = () => {
       <Header 
         title="Take Attendance" 
         userRole="teacher" 
-        userName="Dr. John Smith"
+        userName={formData.faculty}
         onLogout={() => navigate("/login")}
       />
       

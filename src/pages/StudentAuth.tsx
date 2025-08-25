@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { User, Mail, Shield, AlertCircle, CheckCircle } from "lucide-react";
 
@@ -21,9 +21,34 @@ export const StudentAuth = () => {
   const [authError, setAuthError] = useState("");
   const navigate = useNavigate();
   const { sessionId } = useParams();
+  const location = useLocation();
   const { toast } = useToast();
+  
+  // Extract session data from URL parameters
+  const [sessionData, setSessionData] = useState<any>(null);
 
   useEffect(() => {
+    // Extract session data from URL parameters
+    const urlParams = new URLSearchParams(location.search);
+    
+    const extractedSessionData = {
+      subject: urlParams.get('subject') || '',
+      department: urlParams.get('department') || '',
+      semester: urlParams.get('semester') || '',
+      division: urlParams.get('division') || '',
+      lectureType: urlParams.get('lectureType') || '',
+      timeSlot: urlParams.get('timeSlot') || '',
+      classroom: urlParams.get('classroom') || '',
+      date: urlParams.get('date') || '',
+      faculty: urlParams.get('faculty') || ''
+    };
+    
+    // Store session data in localStorage for later use
+    if (sessionId) {
+      localStorage.setItem(`sessionData_${sessionId}`, JSON.stringify(extractedSessionData));
+      setSessionData(extractedSessionData);
+    }
+    
     // Check if user is already authenticated
     const storedAuth = localStorage.getItem(`studentAuth_${sessionId}`);
     if (storedAuth) {
@@ -38,7 +63,7 @@ export const StudentAuth = () => {
         console.error('Error parsing stored auth:', error);
       }
     }
-  }, [sessionId]);
+  }, [sessionId, location.search]);
 
   // Remove the old GIS initialization and script loading
   // useEffect(() => {

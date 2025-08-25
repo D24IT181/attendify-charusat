@@ -17,6 +17,7 @@ import { StudentAttendance } from "./pages/StudentAttendance";
 import { AttendanceSuccess } from "./pages/AttendanceSuccess";
 import { OAuthCallback } from "./pages/OAuthCallback";
 
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -39,6 +40,7 @@ const App = () => (
           <Route path="/oauth-callback" element={<OAuthCallback />} />
           <Route path="/attendance-success" element={<AttendanceSuccess />} />
           <Route path="/attendance-success/:sessionId" element={<AttendanceSuccess />} />
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

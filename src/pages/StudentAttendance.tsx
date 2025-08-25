@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, Eye, CheckCircle, AlertCircle, RotateCcw, Upload } from "lucide-react";
+import { extractStudentId, formatAttendanceData } from "@/lib/studentUtils";
+import { API_ENDPOINTS } from "@/config/api";
 
 interface AuthData {
   email: string;
@@ -138,7 +140,7 @@ export const StudentAttendance = () => {
 
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
       if (!ctx) return;
 
       canvas.width = video.videoWidth;
@@ -199,7 +201,7 @@ export const StudentAttendance = () => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -236,23 +238,130 @@ export const StudentAttendance = () => {
     if (!capturedImage || !authData || !sessionInfo) return;
     setIsSubmitting(true);
 
-    const attendanceRecord = {
-      sessionId,
-      studentEmail: authData.email,
-      studentName: authData.name,
-      timestamp: new Date().toISOString(),
-      image: capturedImage,
-      status: 'present'
-    };
+    try {
+      // Extract student ID from email
+      const studentId = extractStudentId(authData.email);
+      if (!studentId) {
+        toast({
+          title: "Invalid Email",
+          description: "Please use a valid CHARUSAT email address",
+          variant: "destructive"
+        });
+        setIsSubmitting(false);
+        return;
+      }
 
-    const existingRecords = JSON.parse(localStorage.getItem(`attendance_${sessionId}`) || '[]');
-    existingRecords.push(attendanceRecord);
-    localStorage.setItem(`attendance_${sessionId}`, JSON.stringify(existingRecords));
+      // Get session data from localStorage (stored by StudentAuth)
+      const storedSessionData = localStorage.getItem(`sessionData_${sessionId}`);
+      console.log('Stored Session Data Key:', `sessionData_${sessionId}`);
+      console.log('Raw Stored Session Data:', storedSessionData);
+      
+      if (!storedSessionData) {
+        toast({
+          title: "Session Data Missing",
+          description: "Session information not found. Please try again.",
+          variant: "destructive"
+        });
+        setIsSubmitting(false);
+        return;
+      }
 
-    const key = `attendance_submitted_${sessionId}_${authData.email}`;
-    localStorage.setItem(key, '1');
+      const sessionData = JSON.parse(storedSessionData);
+      console.log('Parsed Session Data:', sessionData);
+      
+      // Fallback: If session data is empty, use default values
+      const finalSessionData = {
+        subject: sessionData.subject || 'Test Subject',
+        department: sessionData.department || 'IT',
+        semester: sessionData.semester || '3',
+        division: sessionData.division || 'IT 1',
+        lectureType: sessionData.lectureType || 'lecture',
+        timeSlot: sessionData.timeSlot || '9:10 to 10:10',
+        classroom: sessionData.classroom || '608',
+        date: sessionData.date || new Date().toISOString().split('T')[0],
+        faculty: sessionData.faculty || 'Test Faculty'
+      };
+      
+      console.log('Final Session Data (with fallbacks):', finalSessionData);
+      
+      // Format data for database
+      const attendanceData = formatAttendanceData(
+        finalSessionData,
+        studentId,
+        authData.email,
+        capturedImage
+      );
 
-    navigate(`/attendance-success/${sessionId}`, { replace: true });
+      // Debug: Log the data being sent
+      console.log('Session Data:', sessionData);
+      console.log('Formatted Attendance Data:', attendanceData);
+
+      // Validate all required fields
+      const requiredFields = ['MOT', 'timeslot', 'dept', 'division', 'subject', 'faculty_name', 'sem', 'date', 'student_id', 'selfie', 'gmail'];
+      const missingFields = requiredFields.filter(field => !attendanceData[field] || attendanceData[field] === '');
+      
+      if (missingFields.length > 0) {
+        console.error('Missing fields:', missingFields);
+        toast({
+          title: "Missing Data",
+          description: `Missing required fields: ${missingFields.join(', ')}`,
+          variant: "destructive"
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Submit to database
+      const response = await fetch(API_ENDPOINTS.INSERT_ATTENDANCE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(attendanceData)
+      });
+
+      const result = await response.json();
+      
+      console.log('PHP Response:', result);
+
+      if (result.success) {
+        // Store local record for fallback
+        const attendanceRecord = {
+          sessionId,
+          studentEmail: authData.email,
+          studentName: authData.name,
+          timestamp: new Date().toISOString(),
+          image: capturedImage,
+          status: 'present'
+        };
+
+        const existingRecords = JSON.parse(localStorage.getItem(`attendance_${sessionId}`) || '[]');
+        existingRecords.push(attendanceRecord);
+        localStorage.setItem(`attendance_${sessionId}`, JSON.stringify(existingRecords));
+
+        // Mark attendance as submitted
+        const key = `attendance_submitted_${sessionId}_${authData.email}`;
+        localStorage.setItem(key, '1');
+
+        toast({
+          title: "Attendance Recorded!",
+          description: "Your attendance has been successfully recorded in the database.",
+        });
+
+        navigate(`/attendance-success/${sessionId}`, { replace: true });
+      } else {
+        throw new Error(result.error || 'Failed to record attendance');
+      }
+    } catch (error) {
+      console.error('Error submitting attendance:', error);
+      toast({
+        title: "Error",
+        description: "Failed to record attendance. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   useEffect(() => {

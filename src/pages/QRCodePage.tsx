@@ -25,6 +25,7 @@ export const QRCodePage = () => {
     timeSlot: "",
     classroom: "608",
     date: new Date().toISOString().split('T')[0],
+    faculty: "",
   });
   
   // Generated session data
@@ -62,15 +63,12 @@ export const QRCodePage = () => {
   // Check for existing sessions in localStorage on mount
   useEffect(() => {
     if (!location.state) {
-      const existingSessions = JSON.parse(localStorage.getItem('attendanceSessions') || '[]');
-      if (existingSessions.length > 0) {
-        const latestSession = existingSessions[existingSessions.length - 1];
-        
-        if (latestSession.attendanceLink) {
-          setSessionData(latestSession);
-          setShowSessionForm(false);
-        }
-      }
+      // Force show the form for new session creation
+      setShowSessionForm(true);
+      setSessionData(null);
+      
+      // Clear any existing sessions to force new creation
+      localStorage.removeItem('attendanceSessions');
     }
   }, [location.state]);
 
@@ -92,6 +90,7 @@ export const QRCodePage = () => {
 
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!attendanceSession.subject || !attendanceSession.department || 
         !attendanceSession.semester || !attendanceSession.division || 
         !attendanceSession.timeSlot) {
@@ -106,7 +105,23 @@ export const QRCodePage = () => {
     setIsLoadingSession(true);
     try {
       const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const attendanceLink = `${window.location.origin}/student-auth/${sessionId}`;
+      
+      // Create URL with session data as query parameters
+      const sessionParams = new URLSearchParams({
+        subject: attendanceSession.subject,
+        department: attendanceSession.department,
+        semester: attendanceSession.semester,
+        division: attendanceSession.division,
+        lectureType: attendanceSession.lectureType,
+        timeSlot: attendanceSession.timeSlot,
+        classroom: attendanceSession.classroom,
+        date: attendanceSession.date,
+        faculty: attendanceSession.faculty || 'Admin' // Use faculty from form or default
+      });
+      
+      const attendanceLink = `${window.location.origin}/student-auth/${sessionId}?${sessionParams.toString()}`;
+      
+
       
       const newSessionData = {
         sessionId,
@@ -130,6 +145,8 @@ export const QRCodePage = () => {
       
       setSessionData(newSessionData);
       setShowSessionForm(false);
+      
+
       
       toast({
         title: "Attendance Session Created!",
@@ -174,6 +191,8 @@ export const QRCodePage = () => {
   const handleCreateNewSession = () => {
     setSessionData(null);
     setShowSessionForm(true);
+    // Clear localStorage to force fresh start
+    localStorage.removeItem('attendanceSessions');
     setAttendanceSession({
       subject: "",
       department: "",
@@ -183,15 +202,28 @@ export const QRCodePage = () => {
       timeSlot: "",
       classroom: "608",
       date: new Date().toISOString().split('T')[0],
+      faculty: "",
     });
   };
+
+  // Derive teacher name for header: prefer navigation state faculty, fallback to localStorage
+  const teacherName = (sessionData?.faculty || (() => {
+    try {
+      const stored = localStorage.getItem('teacherInfo');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed?.name || undefined;
+      }
+    } catch {}
+    return undefined;
+  })()) as string | undefined;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5">
       <Header 
         title="Attendance Session Management" 
-        userRole="admin" 
-        userName="Admin"
+        userRole="teacher" 
+        userName={teacherName}
         onLogout={() => navigate("/login")}
       />
       
@@ -241,10 +273,6 @@ export const QRCodePage = () => {
                     <option value="IT">IT</option>
                     <option value="CSE">CSE</option>
                     <option value="CE">CE</option>
-                    <option value="ME">ME</option>
-                    <option value="Civil Engineering">Civil Engineering</option>
-                    <option value="ECE">ECE</option>
-                    <option value="EE">EE</option>
                   </select>
                 </div>
                 
@@ -350,6 +378,19 @@ export const QRCodePage = () => {
                     required
                   />
                 </div>
+                 
+                 <div className="space-y-2">
+                   <Label htmlFor="faculty">Faculty Name</Label>
+                   <Input
+                     id="faculty"
+                     type="text"
+                     placeholder="e.g., Dr. John Smith"
+                     value={attendanceSession.faculty}
+                     onChange={(e) => handleSessionInputChange("faculty", e.target.value)}
+                     className="bg-background"
+                     required
+                   />
+                 </div>
                 
                 <div className="md:col-span-2 lg:col-span-3">
                   <Button type="submit" variant="hero" className="w-full" disabled={isLoadingSession}>
