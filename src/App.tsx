@@ -9,6 +9,8 @@ import { Login } from "./pages/Login";
 import { ForgotPassword } from "./pages/ForgotPassword";
 import { AdminDashboard } from "./pages/AdminDashboard";
 import { TeacherDashboard } from "./pages/TeacherDashboard";
+import { TeacherManagement } from "./pages/TeacherManagement";
+import { StudentManagement } from "./pages/StudentManagement";
 import { TakeAttendance } from "./pages/TakeAttendance";
 import { QRCodePage } from "./pages/QRCodePage";
 import { GetAttendance } from "./pages/GetAttendance";
@@ -31,6 +33,8 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
+          <Route path="/teacher-management" element={<TeacherManagement />} />
+          <Route path="/student-management" element={<StudentManagement />} />
           <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
           <Route path="/take-attendance" element={<TakeAttendance />} />
           <Route path="/qr-code" element={<QRCodePage />} />

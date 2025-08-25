@@ -1,13 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Header } from "@/components/Header";
-import { Download, RotateCcw, ArrowLeft, FileSpreadsheet } from "lucide-react";
+import { Download, RotateCcw, ArrowLeft, FileSpreadsheet, X, Eye, FileDown, Search, Filter, Calendar, Users, TrendingUp, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { API_ENDPOINTS } from "@/config/api";
+import * as XLSX from 'xlsx';
+
+interface AttendanceRecord {
+  id: number;
+  student_id: string;
+  selfie: string;
+  attendance_time: string;
+  date: string;
+}
 
 export const GetAttendance = () => {
   const [formData, setFormData] = useState({
@@ -19,6 +33,16 @@ export const GetAttendance = () => {
   });
   const [teacherName, setTeacherName] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
+  const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
+  const [isRemoving, setIsRemoving] = useState<number | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState<"date" | "student_id">("date");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [password, setPassword] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -34,21 +58,300 @@ export const GetAttendance = () => {
     } catch {}
   }, []);
 
-  const handleDownload = () => {
+  const handleFetch = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      toast({
-        title: "Excel Downloaded!",
-        description: "Attendance report has been downloaded to your device",
+    try {
+      const response = await fetch(API_ENDPOINTS.GET_ATTENDANCE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
       });
-    }, 2000);
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setAttendanceData(result.data);
+        toast({
+          title: "Attendance Fetched!",
+          description: `Found ${result.count} attendance records`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to fetch attendance data",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch attendance data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleReset = () => {
+  const handleRemoveRecord = async (id: number) => {
+    setIsRemoving(id);
+    try {
+      const response = await fetch(API_ENDPOINTS.REMOVE_ATTENDANCE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setAttendanceData(prev => prev.filter(record => record.id !== id));
+        toast({
+          title: "Record Removed!",
+          description: "Attendance record has been deleted successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to remove record",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to remove record",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRemoving(null);
+    }
+  };
+
+  const handleViewImage = (selfie: string) => {
+    setSelectedImage(selfie);
+  };
+
+  const handleCloseImage = () => {
+    setSelectedImage(null);
+  };
+
+  const handleResetClick = () => {
+    if (attendanceData.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No attendance data to reset",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowResetDialog(true);
+  };
+
+  const handleResetConfirm = () => {
+    setShowResetDialog(false);
+    setShowPasswordDialog(true);
+  };
+
+  const handlePasswordSubmit = async () => {
+    if (!password.trim()) {
+      toast({
+        title: "Password Required",
+        description: "Please enter your password to continue",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      // Get teacher info from localStorage
+      const teacherInfo = localStorage.getItem('teacherInfo');
+      if (!teacherInfo) {
+        throw new Error('Teacher information not found');
+      }
+
+      const teacherData = JSON.parse(teacherInfo);
+      
+      // Verify password by attempting to login
+      const response = await fetch(API_ENDPOINTS.TEACHER_LOGIN, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: teacherData.email,
+          password: password
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // Password is correct, now delete attendance records
+        await deleteAttendanceRecords();
+      } else {
+        toast({
+          title: "Incorrect Password",
+          description: "Please enter the correct password",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to verify password",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResetting(false);
+      setPassword("");
+      setShowPasswordDialog(false);
+    }
+  };
+
+  const deleteAttendanceRecords = async () => {
+    try {
+      // Build filter parameters for deletion
+      const filterParams = {
+        department: formData.department,
+        division: formData.division,
+        timeSlot: formData.timeSlot,
+        semester: formData.semester,
+        date: formData.date
+      };
+
+      // Use the bulk deletion endpoint
+      const response = await fetch(API_ENDPOINTS.DELETE_ATTENDANCE_BULK, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(filterParams)
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // Reset local state
+        setFormData({
+          department: "",
+          division: "",
+          timeSlot: "",
+          semester: "",
+          date: ""
+        });
+        setAttendanceData([]);
+        setSearchTerm("");
+        setSortBy("date");
+        setSortOrder("desc");
+        
+        toast({
+          title: "Records Deleted!",
+          description: `${result.deletedCount} attendance records have been permanently deleted from the database`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to delete records",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete attendance records",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Computed properties for better performance
+  const filteredAndSortedData = useMemo(() => {
+    let filtered = attendanceData;
+    
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(record => 
+        record.student_id.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+      
+      if (sortBy === "date") {
+        aValue = new Date(a.attendance_time).getTime();
+        bValue = new Date(b.attendance_time).getTime();
+      } else {
+        aValue = a.student_id;
+        bValue = b.student_id;
+      }
+      
+      if (sortOrder === "asc") {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+    
+    return filtered;
+  }, [attendanceData, searchTerm, sortBy, sortOrder]);
+
+  const attendanceStats = useMemo(() => {
+    const total = attendanceData.length;
+    const today = new Date().toISOString().split('T')[0];
+    const todayCount = attendanceData.filter(record => 
+      record.date === today
+    ).length;
+    
+    return { total, today: todayCount };
+  }, [attendanceData]);
+
+  const handleDownloadExcel = () => {
+    if (attendanceData.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No attendance data to download",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Create worksheet data with index and present number (student ID)
+    const worksheetData = attendanceData.map((record, index) => ({
+      'Index': index + 1,
+      'Present Number': record.student_id
+    }));
+
+    // Create workbook and worksheet
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+
+    // Set column widths
+    worksheet['!cols'] = [
+      { width: 15 }, // Index
+      { width: 20 }  // Present Number
+    ];
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
+
+    // Generate filename with current date
+    const currentDate = new Date().toISOString().split('T')[0];
+    const filename = `attendance_${currentDate}.xlsx`;
+
+    // Download the file
+    XLSX.writeFile(workbook, filename);
+
     toast({
-      title: "Attendance Reset!",
-      description: "All attendance data for this session has been cleared",
+      title: "Excel Downloaded!",
+      description: `Attendance report with ${attendanceData.length} students has been downloaded`,
     });
   };
 
@@ -62,15 +365,33 @@ export const GetAttendance = () => {
       />
       
       <div className="container mx-auto px-4 py-8">
-        <Button onClick={handleBack} variant="outline" className="mb-6">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Dashboard
-        </Button>
+        <div className="flex items-center justify-between mb-6">
+          <Button onClick={handleBack} variant="outline" className="flex items-center gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Button>
+          
+          {attendanceData.length > 0 && (
+            <div className="flex items-center gap-4">
+              <Badge variant="secondary" className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                Total: {attendanceStats.total}
+              </Badge>
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                Today: {attendanceStats.today}
+              </Badge>
+            </div>
+          )}
+        </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle>Filter Attendance Records</CardTitle>
+            <CardHeader className="border-b border-gray-100">
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-5 w-5 text-primary" />
+                Filter Attendance Records
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -140,11 +461,11 @@ export const GetAttendance = () => {
               <Input type="date" onChange={(e) => setFormData({...formData, date: e.target.value})} />
               
               <div className="flex gap-4">
-                <Button onClick={handleDownload} variant="hero" className="flex-1" disabled={isLoading}>
+                <Button onClick={handleFetch} variant="hero" className="flex-1" disabled={isLoading}>
                   <Download className="h-4 w-4 mr-2" />
-                  {isLoading ? "Downloading..." : "Download Excel"}
+                  {isLoading ? "Fetching..." : "Fetch"}
                 </Button>
-                <Button onClick={handleReset} variant="destructive" className="flex-1">
+                <Button onClick={handleResetClick} variant="destructive" className="flex-1">
                   <RotateCcw className="h-4 w-4 mr-2" />
                   Reset Data
                 </Button>
@@ -161,26 +482,280 @@ export const GetAttendance = () => {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <span>Total Students</span>
-                    <span className="font-bold">45</span>
+                    <span className="font-bold">{attendanceStats.total}</span>
                   </div>
                 </div>
                 <div className="bg-green-50 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <span>Present</span>
-                    <span className="font-bold text-green-600">38</span>
+                    <span className="font-bold text-green-600">{attendanceStats.total}</span>
                   </div>
                 </div>
                 <div className="bg-red-50 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <span>Absent</span>
-                    <span className="font-bold text-red-600">7</span>
+                    <span className="font-bold text-red-600">0</span>
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
+        
+        {/* Attendance Table */}
+        {attendanceData.length > 0 && (
+          <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm mt-8">
+            <CardHeader className="border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5 text-primary" />
+                  Attendance Records ({filteredAndSortedData.length})
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search by Student ID..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 w-64"
+                    />
+                  </div>
+                  <Select value={sortBy} onValueChange={(value: "date" | "student_id") => setSortBy(value)}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">Sort by Date</SelectItem>
+                      <SelectItem value="student_id">Sort by ID</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                    className="flex items-center gap-1"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${sortOrder === "desc" ? "rotate-180" : ""}`} />
+                    {sortOrder === "asc" ? "Asc" : "Desc"}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead className="font-semibold">Index</TableHead>
+                    <TableHead className="font-semibold">Student ID</TableHead>
+                    <TableHead className="font-semibold">Selfie</TableHead>
+                    <TableHead className="font-semibold">Date</TableHead>
+                    <TableHead className="font-semibold">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAndSortedData.map((record, index) => (
+                    <TableRow key={record.id} className="hover:bg-gray-50 transition-colors">
+                      <TableCell className="font-medium text-center">
+                        <Badge variant="outline" className="font-mono">
+                          {index + 1}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        <Badge variant="secondary">
+                          {record.student_id}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewImage(record.selfie)}
+                          className="h-8 w-8 p-0 hover:bg-blue-50 hover:border-blue-200"
+                        >
+                          <Eye className="h-4 w-4 text-blue-600" />
+                        </Button>
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-600">
+                        {new Date(record.attendance_time).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleRemoveRecord(record.id)}
+                          disabled={isRemoving === record.id}
+                          className="h-8 w-8 p-0 hover:bg-red-50"
+                        >
+                          {isRemoving === record.id ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <X className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Download Excel Button */}
+        {attendanceData.length > 0 && (
+          <div className="mt-8 flex justify-center">
+            <Card className="shadow-lg border-0 bg-gradient-to-r from-green-50 to-emerald-50 p-6">
+              <div className="text-center space-y-4">
+                <div className="flex items-center justify-center">
+                  <div className="p-3 bg-green-100 rounded-full">
+                    <FileDown className="h-8 w-8 text-green-600" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Export Attendance Data
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Download an Excel file with {filteredAndSortedData.length} attendance records
+                  </p>
+                  <Button 
+                    onClick={handleDownloadExcel} 
+                    variant="default" 
+                    size="lg"
+                    className="bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                  >
+                    <FileDown className="h-5 w-5 mr-2" />
+                    Download Excel Report
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
+      
+      {/* Image Modal */}
+      {selectedImage && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-full">
+                  <Eye className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Student Selfie</h3>
+                  <p className="text-sm text-gray-500">Attendance verification image</p>
+                </div>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleCloseImage}
+                className="hover:bg-gray-50"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-6">
+              <img 
+                src={selectedImage} 
+                alt="Student selfie" 
+                className="w-full h-auto rounded-lg shadow-lg border border-gray-200"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Confirmation Dialog */}
+      <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <AlertDialogContent className="bg-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <RotateCcw className="h-5 w-5" />
+              Warning: Delete Attendance Records
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-700">
+              Are you sure you want to permanently delete all attendance records for this session? 
+              This action cannot be undone and will remove {attendanceData.length} records from the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-gray-100 hover:bg-gray-200">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleResetConfirm}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Yes, Delete Records
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Password Verification Dialog */}
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-red-600" />
+              Verify Your Password
+            </DialogTitle>
+            <DialogDescription>
+              Please enter your account password to confirm the deletion of attendance records.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="mt-1"
+                disabled={isResetting}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPasswordDialog(false);
+                setPassword("");
+              }}
+              disabled={isResetting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePasswordSubmit}
+              disabled={isResetting || !password.trim()}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isResetting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Verifying...
+                </>
+              ) : (
+                "Delete Records"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

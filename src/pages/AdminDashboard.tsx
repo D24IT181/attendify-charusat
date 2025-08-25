@@ -1,24 +1,13 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
-import { UserPlus, Users, Mail, Lock, User, UserMinus } from "lucide-react";
+import { UserPlus, Users, UserMinus, GraduationCap, Settings, BarChart3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-
-const API_BASE = "/Attendance_Project/attendify-charusat/backend-php";
+import { API_ENDPOINTS } from "@/config/api";
 
 export const AdminDashboard = () => {
-  const [teacherForm, setTeacherForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-  });
-  const [removeEmail, setRemoveEmail] = useState("");
-  const [isLoadingAdd, setIsLoadingAdd] = useState(false);
-  const [isLoadingRemove, setIsLoadingRemove] = useState(false);
   const [teacherCount, setTeacherCount] = useState(0);
   const [isLoadingCount, setIsLoadingCount] = useState(true);
   
@@ -27,7 +16,7 @@ export const AdminDashboard = () => {
 
   const fetchTeacherCount = async () => {
     try {
-      const res = await fetch(`${API_BASE}/get_teachers_count.php`);
+      const res = await fetch(API_ENDPOINTS.GET_TEACHERS_COUNT);
       const data = await res.json();
       if (res.ok && data.success) {
         setTeacherCount(data.count);
@@ -49,60 +38,8 @@ export const AdminDashboard = () => {
     fetchTeacherCount();
   }, []);
 
-  const handleAddTeacher = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoadingAdd(true);
-    try {
-      const res = await fetch(`${API_BASE}/add_teacher.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          Full_Name: teacherForm.name,
-          Email: teacherForm.email,
-          Password: teacherForm.password,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast({ title: "Teacher Registered Successfully!", description: `${teacherForm.name} has been added to the system` });
-        setTeacherForm({ name: "", email: "", password: "" });
-        fetchTeacherCount();
-      } else {
-        toast({ title: "Failed to add teacher", description: data.error || "Unknown error", variant: "destructive" });
-      }
-    } catch (err) {
-      toast({ title: "Network error", description: "Could not reach server", variant: "destructive" });
-    } finally {
-      setIsLoadingAdd(false);
-    }
-  };
-
-  const handleRemoveTeacher = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoadingRemove(true);
-    try {
-      const res = await fetch(`${API_BASE}/remove_teacher.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ Email: removeEmail }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast({ title: "Teacher Removed", description: `${removeEmail} has been removed from the system` });
-        setRemoveEmail("");
-        fetchTeacherCount();
-      } else {
-        toast({ title: "Failed to remove teacher", description: data.error || "Unknown error", variant: "destructive" });
-      }
-    } catch (err) {
-      toast({ title: "Network error", description: "Could not reach server", variant: "destructive" });
-    } finally {
-      setIsLoadingRemove(false);
-    }
-  };
-
-  const handleInputChange = (field: string, value: string) => {
-    setTeacherForm(prev => ({ ...prev, [field]: value }));
+  const handleNavigateToModule = (module: string) => {
+    navigate(`/${module}`);
   };
 
   return (
@@ -116,7 +53,7 @@ export const AdminDashboard = () => {
       
       <div className="container mx-auto px-4 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <Card className="shadow-lg border-0 bg-gradient-to-br from-primary to-primary-glow text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -156,99 +93,71 @@ export const AdminDashboard = () => {
           </Card>
         </div>
 
-        {/* Teacher Management */}
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3 text-xl">
-                <UserPlus className="h-6 w-6 text-primary" />
-                Add Teacher
+        {/* Management Modules */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Teacher Management Module */}
+          <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+            <CardHeader className="text-center pb-4">
+              <div className="mx-auto w-16 h-16 bg-gradient-to-br from-primary to-primary-glow rounded-full flex items-center justify-center mb-4">
+                <Users className="h-8 w-8 text-white" />
+              </div>
+              <CardTitle className="text-2xl bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+                Teacher Management
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={handleAddTeacher} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="name"
-                      type="text"
-                      placeholder="Enter teacher's full name"
-                      value={teacherForm.name}
-                      onChange={(e) => handleInputChange("name", e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="teacher@charusat.edu.in"
-                      value={teacherForm.email}
-                      onChange={(e) => handleInputChange("email", e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Create password for teacher"
-                      value={teacherForm.password}
-                      onChange={(e) => handleInputChange("password", e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="md:col-span-2">
-                  <Button type="submit" variant="hero" className="w-full" disabled={isLoadingAdd}>
-                    {isLoadingAdd ? "Registering..." : "Register Teacher"}
-                  </Button>
-                </div>
-              </form>
+            
+            <CardContent className="text-center space-y-4">
+              <p className="text-muted-foreground">
+                Manage teacher accounts, add new teachers, and remove existing ones from the system
+              </p>
+              
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>✓ Add New Teachers</p>
+                <p>✓ Remove Teachers</p>
+                <p>✓ View Teacher Count</p>
+              </div>
+              
+              <Button 
+                onClick={() => handleNavigateToModule('teacher-management')}
+                variant="secondary"
+                size="lg"
+                className="w-full"
+              >
+                Manage Teachers
+              </Button>
             </CardContent>
           </Card>
 
-          <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3 text-xl">
-                <UserMinus className="h-6 w-6 text-destructive" />
-                Remove Teacher
+          {/* Student Management Module */}
+          <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+            <CardHeader className="text-center pb-4">
+              <div className="mx-auto w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mb-4">
+                <GraduationCap className="h-8 w-8 text-white" />
+              </div>
+              <CardTitle className="text-2xl bg-gradient-to-r from-green-500 to-green-600 bg-clip-text text-transparent">
+                Student Management
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={handleRemoveTeacher} className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="removeEmail">Teacher Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="removeEmail"
-                      type="email"
-                      placeholder="teacher@charusat.edu.in"
-                      value={removeEmail}
-                      onChange={(e) => setRemoveEmail(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-                <Button type="submit" variant="destructive" disabled={isLoadingRemove}>
-                  {isLoadingRemove ? "Removing..." : "Remove Teacher"}
-                </Button>
-              </form>
+            
+            <CardContent className="text-center space-y-4">
+              <p className="text-muted-foreground">
+                Manage student records, add new students, and remove existing ones from the system
+              </p>
+              
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>✓ Add New Students</p>
+                <p>✓ Remove Students</p>
+                <p>✓ View Student Count</p>
+              </div>
+              
+              <Button 
+                onClick={() => handleNavigateToModule('student-management')}
+                variant="secondary"
+                size="lg"
+                className="w-full"
+              >
+                Manage Students
+              </Button>
             </CardContent>
           </Card>
         </div>

@@ -13,6 +13,14 @@ export const API_ENDPOINTS = {
   REMOVE_TEACHER: `${API_BASE_URL}/remove_teacher.php`,
   TEACHER_LOGIN: `${API_BASE_URL}/teacher_login.php`,
   GET_TEACHERS_COUNT: `${API_BASE_URL}/get_teachers_count.php`,
+  GET_ATTENDANCE: `${API_BASE_URL}/get_attendance.php`,
+  REMOVE_ATTENDANCE: `${API_BASE_URL}/remove_attendance.php`,
+  DELETE_ATTENDANCE_BULK: `${API_BASE_URL}/delete_attendance_bulk.php`,
+  ADD_STUDENT: `${API_BASE_URL}/add_student.php`,
+  REMOVE_STUDENT: `${API_BASE_URL}/remove_student.php`,
+  GET_STUDENTS_COUNT: `${API_BASE_URL}/get_students_count.php`,
+  GET_STUDENTS_LIST: `${API_BASE_URL}/get_students_list.php`,
+  GET_TEACHERS_LIST: `${API_BASE_URL}/get_teachers_list.php`,
 };
 
 // Helper function to get full API URL
