@@ -445,7 +445,14 @@ export const StudentAttendance = () => {
 
         navigate(`/attendance-success/${sessionId}`, { replace: true });
       } else {
-        throw new Error(result.error || "Failed to record attendance");
+        // Show specific backend-provided error (e.g., student not registered)
+        toast({
+          title: "Error",
+          description: result.error || "Failed to record attendance",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
       }
     } catch (error) {
       console.error("Error submitting attendance:", error);

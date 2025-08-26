@@ -71,6 +71,20 @@ try {
         respond_json(400, ['success' => false, 'error' => 'Invalid email format']);
     }
     
+    // Ensure student exists and is active in `students` table
+    $studentStmt = $pdo->prepare('SELECT student_id, department, division, semester, is_active FROM students WHERE student_id = :sid LIMIT 1');
+    $studentStmt->execute([':sid' => $student_id]);
+    $studentRow = $studentStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$studentRow) {
+        respond_json(403, ['success' => false, 'error' => 'Student is not registered. Contact admin.']);
+    }
+    if (!(bool)$studentRow['is_active']) {
+        respond_json(403, ['success' => false, 'error' => 'Student is inactive. Contact admin.']);
+    }
+
+    // Optional: previously enforced strict matching of department/division/semester.
+    // Relaxed per request: proceed even if they differ. You can re-enable strict matching later if needed.
+
     // Insert into database
     $sql = 'INSERT INTO `attendance_records` (`MOT`, `timeslot`, `dept`, `division`, `subject`, `faculty_name`, `sem`, `date`, `student_id`, `selfie`, `gmail`) VALUES (:mot, :timeslot, :dept, :division, :subject, :faculty_name, :sem, :date, :student_id, :selfie, :gmail)';
     
