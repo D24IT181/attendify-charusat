@@ -4,7 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
-import { QrCode, Link2, Copy, CheckCircle, ArrowLeft, Users, Plus } from "lucide-react";
+import {
+  QrCode,
+  Link2,
+  Copy,
+  CheckCircle,
+  ArrowLeft,
+  Users,
+  Plus,
+} from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import QRCode from "react-qr-code";
@@ -14,7 +22,10 @@ export const QRCodePage = () => {
   const [isLinkCopied, setIsLinkCopied] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [showSessionForm, setShowSessionForm] = useState(true);
-  
+  const [isLoadingCount, setIsLoadingCount] = useState(false);
+  const [recentAttendance, setRecentAttendance] = useState<any[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<string>("");
+
   // Session form state
   const [attendanceSession, setAttendanceSession] = useState({
     subject: "",
@@ -24,13 +35,13 @@ export const QRCodePage = () => {
     lectureType: "lecture",
     timeSlot: "",
     classroom: "608",
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().split("T")[0],
     faculty: "",
   });
-  
+
   // Generated session data
   const [sessionData, setSessionData] = useState<any>(null);
-  
+
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -42,20 +53,22 @@ export const QRCodePage = () => {
       const sessionFromNavigation = location.state;
       if (!sessionFromNavigation.attendanceLink) {
         // Generate the attendance link if it's missing
-        const sessionId = sessionFromNavigation.sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const sessionId =
+          sessionFromNavigation.sessionId ||
+          `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const attendanceLink = `${window.location.origin}/student-auth/${sessionId}`;
-        
+
         const completeSessionData = {
           ...sessionFromNavigation,
           sessionId,
           attendanceLink,
         };
-        
+
         setSessionData(completeSessionData);
       } else {
         setSessionData(sessionFromNavigation);
       }
-      
+
       setShowSessionForm(false);
     }
   }, [location.state]);
@@ -66,23 +79,63 @@ export const QRCodePage = () => {
       // Force show the form for new session creation
       setShowSessionForm(true);
       setSessionData(null);
-      
+
       // Clear any existing sessions to force new creation
-      localStorage.removeItem('attendanceSessions');
+      localStorage.removeItem("attendanceSessions");
     }
   }, [location.state]);
 
-  useEffect(() => {
-    // Simulate real-time attendance updates
-    const interval = setInterval(() => {
-      setAttendanceCount(prev => {
-        const increment = Math.random() > 0.7 ? 1 : 0;
-        return prev + increment;
+  // Function to fetch live attendance count
+  const fetchLiveAttendanceCount = async () => {
+    if (!sessionData) return;
+
+    try {
+      setIsLoadingCount(true);
+      const params = new URLSearchParams({
+        subject: sessionData.subject || "",
+        dept: sessionData.department || "",
+        division: sessionData.division || "",
+        date: sessionData.date || "",
+        lectureType: sessionData.lectureType || "",
+        timeSlot: sessionData.timeSlot || "",
       });
-    }, 3000);
+
+      const response = await fetch(
+        `/Attendance_Project/attendify-charusat/backend-php/get_live_attendance_count.php?${params}`
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        setAttendanceCount(data.attendance_summary.total_present);
+        setRecentAttendance(data.recent_attendance || []);
+        setLastUpdated(data.last_updated || "");
+      } else {
+        console.error("Failed to fetch attendance count:", data.error);
+      }
+    } catch (error) {
+      console.error("Error fetching attendance count:", error);
+    } finally {
+      setIsLoadingCount(false);
+    }
+  };
+
+  // Fetch attendance count when session data changes
+  useEffect(() => {
+    if (sessionData) {
+      fetchLiveAttendanceCount();
+    }
+  }, [sessionData]);
+
+  // Set up real-time updates every 10 seconds
+  useEffect(() => {
+    if (!sessionData) return;
+
+    const interval = setInterval(() => {
+      fetchLiveAttendanceCount();
+    }, 10000); // Update every 10 seconds
 
     return () => clearInterval(interval);
-  }, []);
+  }, [sessionData]);
 
   const handleBack = () => {
     navigate("/admin-dashboard");
@@ -90,22 +143,31 @@ export const QRCodePage = () => {
 
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!attendanceSession.subject || !attendanceSession.department || 
-        !attendanceSession.semester || !attendanceSession.division || 
-        !attendanceSession.timeSlot) {
+
+    if (
+      !attendanceSession.subject ||
+      !attendanceSession.department ||
+      !attendanceSession.semester ||
+      !attendanceSession.division ||
+      !attendanceSession.timeSlot
+    ) {
       toast({
         title: "Validation Error",
         description: "Please fill in all required fields",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    
+
     setIsLoadingSession(true);
     try {
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+      const sessionId = `session_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+
+      // Debug: Log the form data
+      console.log("Creating session with form data:", attendanceSession);
+
       // Create URL with session data as query parameters
       const sessionParams = new URLSearchParams({
         subject: attendanceSession.subject,
@@ -116,13 +178,15 @@ export const QRCodePage = () => {
         timeSlot: attendanceSession.timeSlot,
         classroom: attendanceSession.classroom,
         date: attendanceSession.date,
-        faculty: attendanceSession.faculty || 'Admin' // Use faculty from form or default
+        faculty: attendanceSession.faculty || "Admin", // Use faculty from form or default
       });
-      
-      const attendanceLink = `${window.location.origin}/student-auth/${sessionId}?${sessionParams.toString()}`;
-      
 
-      
+      console.log("Generated URL parameters:", sessionParams.toString());
+
+      const attendanceLink = `${
+        window.location.origin
+      }/student-auth/${sessionId}?${sessionParams.toString()}`;
+
       const newSessionData = {
         sessionId,
         attendanceLink,
@@ -135,19 +199,22 @@ export const QRCodePage = () => {
         classroom: attendanceSession.classroom,
         date: attendanceSession.date,
         createdAt: new Date().toISOString(),
-        status: 'active'
+        status: "active",
       };
-      
+
       // Store in localStorage
-      const existingSessions = JSON.parse(localStorage.getItem('attendanceSessions') || '[]');
+      const existingSessions = JSON.parse(
+        localStorage.getItem("attendanceSessions") || "[]"
+      );
       existingSessions.push(newSessionData);
-      localStorage.setItem('attendanceSessions', JSON.stringify(existingSessions));
-      
+      localStorage.setItem(
+        "attendanceSessions",
+        JSON.stringify(existingSessions)
+      );
+
       setSessionData(newSessionData);
       setShowSessionForm(false);
-      
 
-      
       toast({
         title: "Attendance Session Created!",
         description: "QR code and link have been generated successfully",
@@ -157,7 +224,7 @@ export const QRCodePage = () => {
       toast({
         title: "Error",
         description: "Failed to create attendance session",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsLoadingSession(false);
@@ -165,12 +232,12 @@ export const QRCodePage = () => {
   };
 
   const handleSessionInputChange = (field: string, value: string) => {
-    setAttendanceSession(prev => ({ ...prev, [field]: value }));
+    setAttendanceSession((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleCopyLink = async () => {
     if (!sessionData?.attendanceLink) return;
-    
+
     try {
       await navigator.clipboard.writeText(sessionData.attendanceLink);
       setIsLinkCopied(true);
@@ -192,7 +259,7 @@ export const QRCodePage = () => {
     setSessionData(null);
     setShowSessionForm(true);
     // Clear localStorage to force fresh start
-    localStorage.removeItem('attendanceSessions');
+    localStorage.removeItem("attendanceSessions");
     setAttendanceSession({
       subject: "",
       department: "",
@@ -201,38 +268,35 @@ export const QRCodePage = () => {
       lectureType: "lecture",
       timeSlot: "",
       classroom: "608",
-      date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString().split("T")[0],
       faculty: "",
     });
   };
 
   // Derive teacher name for header: prefer navigation state faculty, fallback to localStorage
-  const teacherName = (sessionData?.faculty || (() => {
-    try {
-      const stored = localStorage.getItem('teacherInfo');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return parsed?.name || undefined;
-      }
-    } catch {}
-    return undefined;
-  })()) as string | undefined;
+  const teacherName = (sessionData?.faculty ||
+    (() => {
+      try {
+        const stored = localStorage.getItem("teacherInfo");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed?.name || undefined;
+        }
+      } catch {}
+      return undefined;
+    })()) as string | undefined;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5">
-      <Header 
-        title="Attendance Session Management" 
-        userRole="teacher" 
+      <Header
+        title="Attendance Session Management"
+        userRole="teacher"
         userName={teacherName}
         onLogout={() => navigate("/login")}
       />
-      
+
       <div className="container mx-auto px-4 py-8">
-        <Button
-          onClick={handleBack}
-          variant="outline"
-          className="mb-6"
-        >
+        <Button onClick={handleBack} variant="outline" className="mb-6">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Dashboard
         </Button>
@@ -247,7 +311,10 @@ export const QRCodePage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleCreateSession} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <form
+                onSubmit={handleCreateSession}
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+              >
                 <div className="space-y-2">
                   <Label htmlFor="subject">Subject</Label>
                   <Input
@@ -255,17 +322,21 @@ export const QRCodePage = () => {
                     type="text"
                     placeholder="e.g., Data Structures"
                     value={attendanceSession.subject}
-                    onChange={(e) => handleSessionInputChange("subject", e.target.value)}
+                    onChange={(e) =>
+                      handleSessionInputChange("subject", e.target.value)
+                    }
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="department">Department</Label>
                   <select
                     id="department"
                     value={attendanceSession.department}
-                    onChange={(e) => handleSessionInputChange("department", e.target.value)}
+                    onChange={(e) =>
+                      handleSessionInputChange("department", e.target.value)
+                    }
                     className="w-full px-3 py-2 border border-input rounded-md bg-background"
                     required
                   >
@@ -275,48 +346,60 @@ export const QRCodePage = () => {
                     <option value="CE">CE</option>
                   </select>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="semester">Semester</Label>
                   <select
                     id="semester"
                     value={attendanceSession.semester}
-                    onChange={(e) => handleSessionInputChange("semester", e.target.value)}
+                    onChange={(e) =>
+                      handleSessionInputChange("semester", e.target.value)
+                    }
                     className="w-full px-3 py-2 border border-input rounded-md bg-background"
                     required
                   >
                     <option value="">Select Semester</option>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
-                      <option key={sem} value={sem}>{sem}</option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                      <option key={sem} value={sem}>
+                        {sem}
+                      </option>
                     ))}
                   </select>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="division">Division</Label>
                   <select
                     id="division"
                     value={attendanceSession.division}
-                    onChange={(e) => handleSessionInputChange("division", e.target.value)}
+                    onChange={(e) =>
+                      handleSessionInputChange("division", e.target.value)
+                    }
                     className="w-full px-3 py-2 border border-input rounded-md bg-background"
                     required
                   >
                     <option value="">Select Division</option>
                     {attendanceSession.department && (
                       <>
-                        <option value={`${attendanceSession.department} 1`}>{attendanceSession.department} 1</option>
-                        <option value={`${attendanceSession.department} 2`}>{attendanceSession.department} 2</option>
+                        <option value={`${attendanceSession.department} 1`}>
+                          {attendanceSession.department} 1
+                        </option>
+                        <option value={`${attendanceSession.department} 2`}>
+                          {attendanceSession.department} 2
+                        </option>
                       </>
                     )}
                   </select>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="lectureType">Lecture Type</Label>
                   <select
                     id="lectureType"
                     value={attendanceSession.lectureType}
-                    onChange={(e) => handleSessionInputChange("lectureType", e.target.value)}
+                    onChange={(e) =>
+                      handleSessionInputChange("lectureType", e.target.value)
+                    }
                     className="w-full px-3 py-2 border border-input rounded-md bg-background"
                     required
                   >
@@ -325,13 +408,15 @@ export const QRCodePage = () => {
                     <option value="tutorial">Tutorial</option>
                   </select>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="timeSlot">Time Slot</Label>
                   <select
                     id="timeSlot"
                     value={attendanceSession.timeSlot}
-                    onChange={(e) => handleSessionInputChange("timeSlot", e.target.value)}
+                    onChange={(e) =>
+                      handleSessionInputChange("timeSlot", e.target.value)
+                    }
                     className="w-full px-3 py-2 border border-input rounded-md bg-background"
                     required
                   >
@@ -354,47 +439,60 @@ export const QRCodePage = () => {
                     )}
                   </select>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="classroom">Classroom</Label>
                   <Input
                     id="classroom"
                     type="text"
                     value={attendanceSession.classroom}
-                    onChange={(e) => handleSessionInputChange("classroom", e.target.value)}
+                    onChange={(e) =>
+                      handleSessionInputChange("classroom", e.target.value)
+                    }
                     className="bg-background"
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="date">Date</Label>
                   <Input
                     id="date"
                     type="date"
                     value={attendanceSession.date}
-                    onChange={(e) => handleSessionInputChange("date", e.target.value)}
+                    onChange={(e) =>
+                      handleSessionInputChange("date", e.target.value)
+                    }
                     className="bg-background"
                     required
                   />
                 </div>
-                 
-                 <div className="space-y-2">
-                   <Label htmlFor="faculty">Faculty Name</Label>
-                   <Input
-                     id="faculty"
-                     type="text"
-                     placeholder="e.g., Dr. John Smith"
-                     value={attendanceSession.faculty}
-                     onChange={(e) => handleSessionInputChange("faculty", e.target.value)}
-                     className="bg-background"
-                     required
-                   />
-                 </div>
-                
+
+                <div className="space-y-2">
+                  <Label htmlFor="faculty">Faculty Name</Label>
+                  <Input
+                    id="faculty"
+                    type="text"
+                    placeholder="e.g., Dr. John Smith"
+                    value={attendanceSession.faculty}
+                    onChange={(e) =>
+                      handleSessionInputChange("faculty", e.target.value)
+                    }
+                    className="bg-background"
+                    required
+                  />
+                </div>
+
                 <div className="md:col-span-2 lg:col-span-3">
-                  <Button type="submit" variant="hero" className="w-full" disabled={isLoadingSession}>
-                    {isLoadingSession ? "Creating Session..." : "Create Attendance Session"}
+                  <Button
+                    type="submit"
+                    variant="hero"
+                    className="w-full"
+                    disabled={isLoadingSession}
+                  >
+                    {isLoadingSession
+                      ? "Creating Session..."
+                      : "Create Attendance Session"}
                   </Button>
                 </div>
               </form>
@@ -410,19 +508,42 @@ export const QRCodePage = () => {
                   Attendance QR Code
                 </CardTitle>
               </CardHeader>
-              
+
               <CardContent className="text-center space-y-6">
                 {/* Session Details */}
                 <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-left">
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div><strong>Subject:</strong> {sessionData?.subject || 'N/A'}</div>
-                    <div><strong>Department:</strong> {sessionData?.department || 'N/A'}</div>
-                    <div><strong>Semester:</strong> {sessionData?.semester || 'N/A'}</div>
-                    <div><strong>Division:</strong> {sessionData?.division || 'N/A'}</div>
-                    <div><strong>Time:</strong> {sessionData?.timeSlot || 'N/A'}</div>
-                    <div><strong>Type:</strong> {sessionData?.lectureType || 'N/A'}</div>
-                    <div><strong>Classroom:</strong> {sessionData?.classroom || 'N/A'}</div>
-                    <div><strong>Date:</strong> {sessionData?.date ? new Date(sessionData.date).toLocaleDateString() : 'N/A'}</div>
+                    <div>
+                      <strong>Subject:</strong> {sessionData?.subject || "N/A"}
+                    </div>
+                    <div>
+                      <strong>Department:</strong>{" "}
+                      {sessionData?.department || "N/A"}
+                    </div>
+                    <div>
+                      <strong>Semester:</strong>{" "}
+                      {sessionData?.semester || "N/A"}
+                    </div>
+                    <div>
+                      <strong>Division:</strong>{" "}
+                      {sessionData?.division || "N/A"}
+                    </div>
+                    <div>
+                      <strong>Time:</strong> {sessionData?.timeSlot || "N/A"}
+                    </div>
+                    <div>
+                      <strong>Type:</strong> {sessionData?.lectureType || "N/A"}
+                    </div>
+                    <div>
+                      <strong>Classroom:</strong>{" "}
+                      {sessionData?.classroom || "N/A"}
+                    </div>
+                    <div>
+                      <strong>Date:</strong>{" "}
+                      {sessionData?.date
+                        ? new Date(sessionData.date).toLocaleDateString()
+                        : "N/A"}
+                    </div>
                   </div>
                 </div>
 
@@ -442,7 +563,7 @@ export const QRCodePage = () => {
                     )}
                   </div>
                 </div>
-                
+
                 <p className="text-sm text-muted-foreground">
                   Students can scan this QR code to mark their attendance
                 </p>
@@ -457,11 +578,92 @@ export const QRCodePage = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm opacity-90">Students Present</p>
-                      <p className="text-4xl font-bold">{attendanceCount}</p>
-                      <p className="text-sm opacity-75">Live count updating...</p>
+                      <p className="text-4xl font-bold">
+                        {isLoadingCount ? (
+                          <div className="animate-pulse">...</div>
+                        ) : (
+                          attendanceCount
+                        )}
+                      </p>
+                      <p className="text-sm opacity-75">
+                        {lastUpdated
+                          ? `Last updated: ${new Date(
+                              lastUpdated
+                            ).toLocaleTimeString()}`
+                          : "Live count updating..."}
+                      </p>
                     </div>
-                    <Users className="h-16 w-16 opacity-80" />
+                    <div className="flex flex-col items-center gap-2">
+                      <Users className="h-16 w-16 opacity-80" />
+                      <Button
+                        onClick={fetchLiveAttendanceCount}
+                        variant="outline"
+                        size="sm"
+                        className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+                        disabled={isLoadingCount}
+                      >
+                        {isLoadingCount ? "↻" : "↻"}
+                      </Button>
+                    </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Recent Attendance List */}
+              <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-primary" />
+                    Recent Attendance
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {recentAttendance.length > 0 ? (
+                    <div className="space-y-3 max-h-48 overflow-y-auto">
+                      {recentAttendance.map((record, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+                        >
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">
+                              {record.student_id}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(
+                                record.attendance_time
+                              ).toLocaleTimeString()}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Present
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-gray-500">
+                      <p>No attendance records yet</p>
+                      <p className="text-xs">
+                        Students will appear here as they mark attendance
+                      </p>
+                    </div>
+                  )}
+                  {recentAttendance.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <Button
+                        onClick={fetchLiveAttendanceCount}
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        disabled={isLoadingCount}
+                      >
+                        {isLoadingCount ? "Refreshing..." : "Refresh Now"}
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -473,12 +675,13 @@ export const QRCodePage = () => {
                     Attendance Link
                   </CardTitle>
                 </CardHeader>
-                
+
                 <CardContent className="space-y-4">
                   <div className="bg-gray-50 rounded-lg p-3 break-all text-sm font-mono">
-                    {sessionData?.attendanceLink || 'No attendance link available'}
+                    {sessionData?.attendanceLink ||
+                      "No attendance link available"}
                   </div>
-                  
+
                   <Button
                     onClick={handleCopyLink}
                     variant={isLinkCopied ? "default" : "outline"}
@@ -496,7 +699,7 @@ export const QRCodePage = () => {
                       </>
                     )}
                   </Button>
-                  
+
                   <p className="text-xs text-muted-foreground text-center">
                     Share this link with students or display the QR code
                   </p>
@@ -506,9 +709,11 @@ export const QRCodePage = () => {
               {/* Instructions */}
               <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm">
                 <CardHeader>
-                  <CardTitle className="text-lg">Instructions for Students</CardTitle>
+                  <CardTitle className="text-lg">
+                    Instructions for Students
+                  </CardTitle>
                 </CardHeader>
-                
+
                 <CardContent>
                   <div className="space-y-2 text-sm">
                     <p>1. Scan the QR code or click the attendance link</p>

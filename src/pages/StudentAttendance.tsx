@@ -3,7 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Eye, CheckCircle, AlertCircle, RotateCcw, Upload } from "lucide-react";
+import {
+  Camera,
+  Eye,
+  CheckCircle,
+  AlertCircle,
+  RotateCcw,
+  Upload,
+} from "lucide-react";
 import { extractStudentId, formatAttendanceData } from "@/lib/studentUtils";
 import { API_ENDPOINTS } from "@/config/api";
 
@@ -28,22 +35,23 @@ export const StudentAttendance = () => {
   const [authData, setAuthData] = useState<AuthData | null>(null);
   const [sessionInfo, setSessionInfo] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [attendanceAlreadySubmitted, setAttendanceAlreadySubmitted] = useState(false);
+  const [attendanceAlreadySubmitted, setAttendanceAlreadySubmitted] =
+    useState(false);
   const [checkingAttendance, setCheckingAttendance] = useState(true);
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  
+
   const navigate = useNavigate();
   const { sessionId } = useParams();
-  const [userEmail, setUserEmail] = useState('');
+  const [userEmail, setUserEmail] = useState("");
   const { toast } = useToast();
 
   // On mount, check if attendance already submitted
   useEffect(() => {
     if (!authData || !authData.email) {
-      console.log('Waiting for authData.email...');
+      console.log("Waiting for authData.email...");
       setCheckingAttendance(true);
       return;
     }
@@ -79,7 +87,9 @@ export const StudentAttendance = () => {
     }
 
     // Get session info
-    const sessions = JSON.parse(localStorage.getItem('attendanceSessions') || '[]');
+    const sessions = JSON.parse(
+      localStorage.getItem("attendanceSessions") || "[]"
+    );
     const currentSession = sessions.find((s: any) => s.sessionId === sessionId);
     if (currentSession) {
       setSessionInfo(currentSession);
@@ -93,10 +103,10 @@ export const StudentAttendance = () => {
         lectureType: "lecture",
         timeSlot: "10:10 to 11:10",
         classroom: "608",
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toISOString().split("T")[0],
         attendanceLink: `${window.location.origin}/student-auth/${sessionId}`,
         createdAt: new Date().toISOString(),
-        status: 'active'
+        status: "active",
       };
       setSessionInfo(testSession);
     }
@@ -107,6 +117,7 @@ export const StudentAttendance = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        streamRef.current = stream;
         setIsCapturing(true);
       }
     } catch {
@@ -116,7 +127,7 @@ export const StudentAttendance = () => {
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
     if (videoRef.current) {
@@ -155,11 +166,13 @@ export const StudentAttendance = () => {
       const centerY = Math.floor(canvas.height / 2);
       const areaSize = Math.min(canvas.width, canvas.height) / 5;
 
-      let total = 0, count = 0;
+      let total = 0,
+        count = 0;
       for (let y = centerY - areaSize; y < centerY + areaSize; y += 2) {
         for (let x = centerX - areaSize; x < centerX + areaSize; x += 2) {
           const index = (y * canvas.width + x) * 4;
-          const brightness = (data[index] + data[index + 1] + data[index + 2]) / 3;
+          const brightness =
+            (data[index] + data[index + 1] + data[index + 2]) / 3;
           total += brightness;
           count++;
         }
@@ -177,7 +190,7 @@ export const StudentAttendance = () => {
 
         // Step 2: detect reopening (blink complete)
         if (closing && avg > prevBrightness - 10) {
-          setBlinkCount(prev => prev + 1);
+          setBlinkCount((prev) => prev + 1);
           setBlinkDetected(true);
 
           setTimeout(() => {
@@ -201,17 +214,17 @@ export const StudentAttendance = () => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
-          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    const imageDataUrl = canvas.toDataURL("image/jpeg", 0.8);
     setCapturedImage(imageDataUrl);
   }, []);
 
   const handleManualCapture = () => {
-    setCaptureAttempts(prev => prev + 1);
+    setCaptureAttempts((prev) => prev + 1);
     if (videoRef.current && canvasRef.current) {
       handleCapture();
       toast({
@@ -222,7 +235,7 @@ export const StudentAttendance = () => {
       toast({
         title: "Camera Not Ready",
         description: "Please wait for camera to initialize",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -245,45 +258,103 @@ export const StudentAttendance = () => {
         toast({
           title: "Invalid Email",
           description: "Please use a valid CHARUSAT email address",
-          variant: "destructive"
+          variant: "destructive",
         });
         setIsSubmitting(false);
         return;
       }
 
       // Get session data from localStorage (stored by StudentAuth)
-      const storedSessionData = localStorage.getItem(`sessionData_${sessionId}`);
-      console.log('Stored Session Data Key:', `sessionData_${sessionId}`);
-      console.log('Raw Stored Session Data:', storedSessionData);
-      
+      const storedSessionData = localStorage.getItem(
+        `sessionData_${sessionId}`
+      );
+      console.log("Stored Session Data Key:", `sessionData_${sessionId}`);
+      console.log("Raw Stored Session Data:", storedSessionData);
+
+      let sessionData;
+
       if (!storedSessionData) {
+        // Fallback: Try to extract from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const extractedSessionData = {
+          subject: urlParams.get("subject") || "",
+          department: urlParams.get("department") || "",
+          semester: urlParams.get("semester") || "",
+          division: urlParams.get("division") || "",
+          lectureType: urlParams.get("lectureType") || "",
+          timeSlot: urlParams.get("timeSlot") || "",
+          classroom: urlParams.get("classroom") || "",
+          date: urlParams.get("date") || "",
+          faculty: urlParams.get("faculty") || "",
+        };
+
+        console.log("Extracted session data from URL:", extractedSessionData);
+
+        // Check if we have any data from URL
+        const hasUrlData = Object.values(extractedSessionData).some(
+          (value) => value !== ""
+        );
+
+        if (!hasUrlData) {
+          toast({
+            title: "Session Data Missing",
+            description:
+              "Session information not found. Please use a fresh session link.",
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        sessionData = extractedSessionData;
+      } else {
+        sessionData = JSON.parse(storedSessionData);
+      }
+      console.log("Parsed Session Data:", sessionData);
+
+      // Use session data directly - no fallbacks to preserve actual input
+      const finalSessionData = {
+        subject: sessionData.subject,
+        department: sessionData.department,
+        semester: sessionData.semester,
+        division: sessionData.division,
+        lectureType: sessionData.lectureType,
+        timeSlot: sessionData.timeSlot,
+        classroom: sessionData.classroom,
+        date: sessionData.date,
+        faculty: sessionData.faculty,
+      };
+
+      console.log("Final Session Data (actual values):", finalSessionData);
+
+      // Validate that all required session data is present
+      const requiredFields = [
+        "subject",
+        "department",
+        "semester",
+        "division",
+        "lectureType",
+        "timeSlot",
+        "date",
+        "faculty",
+      ];
+      const missingFields = requiredFields.filter(
+        (field) => !finalSessionData[field as keyof typeof finalSessionData]
+      );
+
+      if (missingFields.length > 0) {
+        console.error("Missing session data fields:", missingFields);
         toast({
-          title: "Session Data Missing",
-          description: "Session information not found. Please try again.",
-          variant: "destructive"
+          title: "Session Data Incomplete",
+          description: `Missing required session information: ${missingFields.join(
+            ", "
+          )}. Please try again with a fresh session link.`,
+          variant: "destructive",
         });
         setIsSubmitting(false);
         return;
       }
 
-      const sessionData = JSON.parse(storedSessionData);
-      console.log('Parsed Session Data:', sessionData);
-      
-      // Fallback: If session data is empty, use default values
-      const finalSessionData = {
-        subject: sessionData.subject || 'Test Subject',
-        department: sessionData.department || 'IT',
-        semester: sessionData.semester || '3',
-        division: sessionData.division || 'IT 1',
-        lectureType: sessionData.lectureType || 'lecture',
-        timeSlot: sessionData.timeSlot || '9:10 to 10:10',
-        classroom: sessionData.classroom || '608',
-        date: sessionData.date || new Date().toISOString().split('T')[0],
-        faculty: sessionData.faculty || 'Test Faculty'
-      };
-      
-      console.log('Final Session Data (with fallbacks):', finalSessionData);
-      
       // Format data for database
       const attendanceData = formatAttendanceData(
         finalSessionData,
@@ -293,19 +364,35 @@ export const StudentAttendance = () => {
       );
 
       // Debug: Log the data being sent
-      console.log('Session Data:', sessionData);
-      console.log('Formatted Attendance Data:', attendanceData);
+      console.log("Session Data:", sessionData);
+      console.log("Formatted Attendance Data:", attendanceData);
 
-      // Validate all required fields
-      const requiredFields = ['MOT', 'timeslot', 'dept', 'division', 'subject', 'faculty_name', 'sem', 'date', 'student_id', 'selfie', 'gmail'];
-      const missingFields = requiredFields.filter(field => !attendanceData[field] || attendanceData[field] === '');
-      
-      if (missingFields.length > 0) {
-        console.error('Missing fields:', missingFields);
+      // Validate all required attendance data fields
+      const requiredAttendanceFields = [
+        "MOT",
+        "timeslot",
+        "dept",
+        "division",
+        "subject",
+        "faculty_name",
+        "sem",
+        "date",
+        "student_id",
+        "selfie",
+        "gmail",
+      ];
+      const missingAttendanceFields = requiredAttendanceFields.filter(
+        (field) => !attendanceData[field] || attendanceData[field] === ""
+      );
+
+      if (missingAttendanceFields.length > 0) {
+        console.error("Missing attendance fields:", missingAttendanceFields);
         toast({
           title: "Missing Data",
-          description: `Missing required fields: ${missingFields.join(', ')}`,
-          variant: "destructive"
+          description: `Missing required fields: ${missingAttendanceFields.join(
+            ", "
+          )}`,
+          variant: "destructive",
         });
         setIsSubmitting(false);
         return;
@@ -313,18 +400,20 @@ export const StudentAttendance = () => {
 
       // Submit to database
       const response = await fetch(API_ENDPOINTS.INSERT_ATTENDANCE, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(attendanceData)
+        body: JSON.stringify(attendanceData),
       });
 
       const result = await response.json();
-      
-      console.log('PHP Response:', result);
+
+      console.log("PHP Response:", result);
 
       if (result.success) {
+        // Stop camera stream after successful submission
+        stopCamera();
         // Store local record for fallback
         const attendanceRecord = {
           sessionId,
@@ -332,32 +421,38 @@ export const StudentAttendance = () => {
           studentName: authData.name,
           timestamp: new Date().toISOString(),
           image: capturedImage,
-          status: 'present'
+          status: "present",
         };
 
-        const existingRecords = JSON.parse(localStorage.getItem(`attendance_${sessionId}`) || '[]');
+        const existingRecords = JSON.parse(
+          localStorage.getItem(`attendance_${sessionId}`) || "[]"
+        );
         existingRecords.push(attendanceRecord);
-        localStorage.setItem(`attendance_${sessionId}`, JSON.stringify(existingRecords));
+        localStorage.setItem(
+          `attendance_${sessionId}`,
+          JSON.stringify(existingRecords)
+        );
 
         // Mark attendance as submitted
         const key = `attendance_submitted_${sessionId}_${authData.email}`;
-        localStorage.setItem(key, '1');
+        localStorage.setItem(key, "1");
 
         toast({
           title: "Attendance Recorded!",
-          description: "Your attendance has been successfully recorded in the database.",
+          description:
+            "Your attendance has been successfully recorded in the database.",
         });
 
         navigate(`/attendance-success/${sessionId}`, { replace: true });
       } else {
-        throw new Error(result.error || 'Failed to record attendance');
+        throw new Error(result.error || "Failed to record attendance");
       }
     } catch (error) {
-      console.error('Error submitting attendance:', error);
+      console.error("Error submitting attendance:", error);
       toast({
         title: "Error",
         description: "Failed to record attendance. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
@@ -376,7 +471,11 @@ export const StudentAttendance = () => {
   }, [authData, sessionInfo, startCamera, stopCamera]);
 
   if (!authData || !authData.email || checkingAttendance) {
-    return <div className="flex items-center justify-center min-h-screen text-lg">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen text-lg">
+        Loading...
+      </div>
+    );
   }
   if (attendanceAlreadySubmitted) {
     return null;
@@ -393,11 +492,14 @@ export const StudentAttendance = () => {
             <CardTitle className="text-2xl">Mark Your Attendance</CardTitle>
             <div className="text-sm text-muted-foreground space-y-1">
               <p>Welcome, {authData.name}!</p>
-              <p>Session: {sessionInfo.subject} - {sessionInfo.department} {sessionInfo.semester} Sem</p>
+              <p>
+                Session: {sessionInfo.subject} - {sessionInfo.department}{" "}
+                {sessionInfo.semester} Sem
+              </p>
               <p>Date: {new Date(sessionInfo.date).toLocaleDateString()}</p>
             </div>
           </CardHeader>
-          
+
           <CardContent className="space-y-6">
             {!capturedImage ? (
               <div className="space-y-6">
@@ -405,13 +507,25 @@ export const StudentAttendance = () => {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-blue-700 text-sm mb-2">
                     <Eye className="h-4 w-4" />
-                    <span className="font-medium">Selfie Capture Instructions</span>
+                    <span className="font-medium">
+                      Selfie Capture Instructions
+                    </span>
                   </div>
                   <div className="space-y-2 text-blue-600 text-xs">
-                    <p>1. <strong>Position your face</strong> in the camera view</p>
-                    <p>2. <strong>Blink naturally</strong> while looking at the camera</p>
-                    <p>3. <strong>Wait for capture</strong> - the photo will be taken automatically</p>
-                    <p>4. <strong>Review and send</strong> your attendance</p>
+                    <p>
+                      1. <strong>Position your face</strong> in the camera view
+                    </p>
+                    <p>
+                      2. <strong>Blink naturally</strong> while looking at the
+                      camera
+                    </p>
+                    <p>
+                      3. <strong>Wait for capture</strong> - the photo will be
+                      taken automatically
+                    </p>
+                    <p>
+                      4. <strong>Review and send</strong> your attendance
+                    </p>
                   </div>
                 </div>
 
@@ -428,13 +542,15 @@ export const StudentAttendance = () => {
                         height={240}
                         style={{
                           borderRadius: "1.5rem",
-                          border: blinkDetected ? "4px solid #f59e42" : "4px solid #22c55e",
+                          border: blinkDetected
+                            ? "4px solid #f59e42"
+                            : "4px solid #22c55e",
                           background: "#000",
                           objectFit: "cover",
                           display: isCapturing ? "block" : "none",
                         }}
                       />
-                      <canvas ref={canvasRef} style={{ display: 'none' }} />
+                      <canvas ref={canvasRef} style={{ display: "none" }} />
                       {!isCapturing && (
                         <Button onClick={startCamera} className="mt-4">
                           Start Camera
@@ -447,12 +563,21 @@ export const StudentAttendance = () => {
                       )}
                       <div className="mt-2 text-sm text-gray-600">
                         {blinkDetected ? (
-                          <span className="text-orange-600 font-bold">Blink detected! Capturing...</span>
+                          <span className="text-orange-600 font-bold">
+                            Blink detected! Capturing...
+                          </span>
                         ) : (
                           <div className="space-y-1">
                             <p>Blink to capture or use the button below</p>
-                            <p className="text-xs text-blue-600">Blink count: {blinkCount}</p>
-                            <p className="text-xs text-gray-500">Current brightness: {prevBrightness ? Math.round(prevBrightness) : 'N/A'}</p>
+                            <p className="text-xs text-blue-600">
+                              Blink count: {blinkCount}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Current brightness:{" "}
+                              {prevBrightness
+                                ? Math.round(prevBrightness)
+                                : "N/A"}
+                            </p>
                           </div>
                         )}
                       </div>
@@ -460,8 +585,18 @@ export const StudentAttendance = () => {
                   )}
                   {capturedImage && (
                     <div className="flex flex-col items-center">
-                      <img src={capturedImage} alt="Selfie" className="rounded-xl border-4 border-green-500 w-64 h-48 object-cover" />
-                      <Button className="mt-4" onClick={handleSubmitAttendance} disabled={isSubmitting}>Send Attendance</Button>
+                      <img
+                        src={capturedImage}
+                        alt="Selfie"
+                        className="rounded-xl border-4 border-green-500 w-64 h-48 object-cover"
+                      />
+                      <Button
+                        className="mt-4"
+                        onClick={handleSubmitAttendance}
+                        disabled={isSubmitting}
+                      >
+                        Send Attendance
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -494,7 +629,8 @@ export const StudentAttendance = () => {
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Your photo has been captured. Please review and submit your attendance.
+                    Your photo has been captured. Please review and submit your
+                    attendance.
                   </p>
                 </div>
 

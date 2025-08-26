@@ -3,9 +3,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Header } from "@/components/Header";
-import { Calendar, Clock, User, BookOpen, Users, GraduationCap, ArrowLeft, Lock } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  User,
+  BookOpen,
+  Users,
+  GraduationCap,
+  ArrowLeft,
+  Lock,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
@@ -19,19 +34,19 @@ export const TakeAttendance = () => {
     division: "",
     className: "",
     semester: "",
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split("T")[0],
   });
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    const storedTeacherInfo = localStorage.getItem('teacherInfo');
+    const storedTeacherInfo = localStorage.getItem("teacherInfo");
     if (storedTeacherInfo) {
       try {
         const teacherData = JSON.parse(storedTeacherInfo);
         if (teacherData?.name) {
-          setFormData(prev => ({ ...prev, faculty: teacherData.name }));
+          setFormData((prev) => ({ ...prev, faculty: teacherData.name }));
         }
       } catch (error) {
         // ignore parse errors
@@ -44,30 +59,109 @@ export const TakeAttendance = () => {
   };
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [field]: value,
       // Reset dependent fields
       ...(field === "lectureType" ? { timeSlot: "" } : {}),
-      ...(field === "department" ? { division: "" } : {})
+      ...(field === "department" ? { division: "" } : {}),
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate required fields
+    const requiredFields = [
+      "lectureType",
+      "timeSlot",
+      "subject",
+      "department",
+      "division",
+      "semester",
+      "date",
+    ];
+    const missingFields = requiredFields.filter(
+      (field) => !formData[field as keyof typeof formData]
+    );
+
+    if (missingFields.length > 0) {
+      toast({
+        title: "Missing Information",
+        description: `Please fill in: ${missingFields.join(", ")}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
-    
-    // Simulate QR code generation
-    setTimeout(() => {
+
+    try {
+      // Create session data
+      const sessionId = `session_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+
+      // Create URL with session data as query parameters
+      const sessionParams = new URLSearchParams({
+        subject: formData.subject,
+        department: formData.department,
+        semester: formData.semester,
+        division: formData.division,
+        lectureType: formData.lectureType,
+        timeSlot: formData.timeSlot,
+        classroom: formData.className,
+        date: formData.date,
+        faculty: formData.faculty,
+      });
+
+      const attendanceLink = `${
+        window.location.origin
+      }/student-auth/${sessionId}?${sessionParams.toString()}`;
+
+      const sessionData = {
+        sessionId,
+        attendanceLink,
+        subject: formData.subject,
+        department: formData.department,
+        semester: formData.semester,
+        division: formData.division,
+        lectureType: formData.lectureType,
+        timeSlot: formData.timeSlot,
+        classroom: formData.className,
+        date: formData.date,
+        faculty: formData.faculty,
+        createdAt: new Date().toISOString(),
+        status: "active",
+      };
+
+      // Store in localStorage
+      const existingSessions = JSON.parse(
+        localStorage.getItem("attendanceSessions") || "[]"
+      );
+      existingSessions.push(sessionData);
+      localStorage.setItem(
+        "attendanceSessions",
+        JSON.stringify(existingSessions)
+      );
+
       setIsLoading(false);
       toast({
         title: "Attendance Session Created!",
         description: "QR code and link have been generated successfully",
       });
-      
-      // Navigate to QR code page with form data
-      navigate("/qr-code", { state: formData });
-    }, 2000);
+
+      // Navigate to QR code page with session data
+      navigate("/qr-code", { state: sessionData });
+    } catch (error) {
+      console.error("Error creating session:", error);
+      setIsLoading(false);
+      toast({
+        title: "Error",
+        description: "Failed to create attendance session",
+        variant: "destructive",
+      });
+    }
   };
 
   const lectureTimeSlots = [
@@ -76,64 +170,50 @@ export const TakeAttendance = () => {
     "12:10 to 1:10",
     "1:10 to 2:10",
     "2:20 to 3:20",
-    "3:20 to 4:20"
+    "3:20 to 4:20",
   ];
 
-  const labTimeSlots = [
-    "9:10 to 11:10",
-    "12:10 to 2:10",
-    "2:20 to 4:20"
-  ];
+  const labTimeSlots = ["9:10 to 11:10", "12:10 to 2:10", "2:20 to 4:20"];
 
-  const timeSlots = formData.lectureType === "lab"
-    ? labTimeSlots
-    : formData.lectureType === "lecture"
+  const timeSlots =
+    formData.lectureType === "lab"
+      ? labTimeSlots
+      : formData.lectureType === "lecture"
       ? lectureTimeSlots
       : [];
 
   const semesters = ["1", "2", "3", "4", "5", "6", "7", "8"];
   const classes = ["608"]; // Single classroom option as requested
 
-  const departments = [
-    "IT",
-    "CSE",
-    "CE"
-  ];
+  const departments = ["IT", "CSE", "CE"];
 
   const divisionOptions = formData.department
-    ? [
-        `${formData.department} 1`,
-        `${formData.department} 2`,
-      ]
+    ? [`${formData.department} 1`, `${formData.department} 2`]
     : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5">
-      <Header 
-        title="Take Attendance" 
-        userRole="teacher" 
+      <Header
+        title="Take Attendance"
+        userRole="teacher"
         userName={formData.faculty}
         onLogout={() => navigate("/login")}
       />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
-          <Button
-            onClick={handleBack}
-            variant="outline"
-            className="mb-6"
-          >
+          <Button onClick={handleBack} variant="outline" className="mb-6">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
-          
+
           <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm">
             <CardHeader className="text-center">
               <CardTitle className="text-2xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 Create Attendance Session
               </CardTitle>
             </CardHeader>
-            
+
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -141,7 +221,12 @@ export const TakeAttendance = () => {
                     <Label htmlFor="lectureType">Lecture / Lab</Label>
                     <div className="relative">
                       <BookOpen className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
-                      <Select onValueChange={(value) => handleInputChange("lectureType", value)} required>
+                      <Select
+                        onValueChange={(value) =>
+                          handleInputChange("lectureType", value)
+                        }
+                        required
+                      >
                         <SelectTrigger className="pl-10">
                           <SelectValue placeholder="Select type" />
                         </SelectTrigger>
@@ -152,14 +237,28 @@ export const TakeAttendance = () => {
                       </Select>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="timeSlot">Time Slot</Label>
                     <div className="relative">
                       <Clock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
-                      <Select onValueChange={(value) => handleInputChange("timeSlot", value)} required>
-                        <SelectTrigger className="pl-10" disabled={!formData.lectureType}>
-                          <SelectValue placeholder={formData.lectureType ? "Select time slot" : "Select type first"} />
+                      <Select
+                        onValueChange={(value) =>
+                          handleInputChange("timeSlot", value)
+                        }
+                        required
+                      >
+                        <SelectTrigger
+                          className="pl-10"
+                          disabled={!formData.lectureType}
+                        >
+                          <SelectValue
+                            placeholder={
+                              formData.lectureType
+                                ? "Select time slot"
+                                : "Select type first"
+                            }
+                          />
                         </SelectTrigger>
                         <SelectContent className="bg-white border shadow-lg z-50">
                           {timeSlots.map((slot) => (
@@ -179,7 +278,12 @@ export const TakeAttendance = () => {
                     <Label htmlFor="department">Department</Label>
                     <div className="relative">
                       <BookOpen className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
-                      <Select onValueChange={(value) => handleInputChange("department", value)} required>
+                      <Select
+                        onValueChange={(value) =>
+                          handleInputChange("department", value)
+                        }
+                        required
+                      >
                         <SelectTrigger className="pl-10">
                           <SelectValue placeholder="Select department" />
                         </SelectTrigger>
@@ -198,9 +302,23 @@ export const TakeAttendance = () => {
                     <Label htmlFor="division">Division</Label>
                     <div className="relative">
                       <Users className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
-                      <Select onValueChange={(value) => handleInputChange("division", value)} required>
-                        <SelectTrigger className="pl-10" disabled={!formData.department}>
-                          <SelectValue placeholder={formData.department ? "Select division" : "Select department first"} />
+                      <Select
+                        onValueChange={(value) =>
+                          handleInputChange("division", value)
+                        }
+                        required
+                      >
+                        <SelectTrigger
+                          className="pl-10"
+                          disabled={!formData.department}
+                        >
+                          <SelectValue
+                            placeholder={
+                              formData.department
+                                ? "Select division"
+                                : "Select department first"
+                            }
+                          />
                         </SelectTrigger>
                         <SelectContent className="bg-white border shadow-lg z-50">
                           {divisionOptions.map((div) => (
@@ -213,7 +331,7 @@ export const TakeAttendance = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="subject">Subject</Label>
                   <div className="relative">
@@ -223,13 +341,15 @@ export const TakeAttendance = () => {
                       type="text"
                       placeholder="Enter subject name"
                       value={formData.subject}
-                      onChange={(e) => handleInputChange("subject", e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("subject", e.target.value)
+                      }
                       className="pl-10"
                       required
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="faculty">Faculty Name</Label>
                   <div className="relative">
@@ -246,13 +366,18 @@ export const TakeAttendance = () => {
                     <Lock className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="className">Class</Label>
                     <div className="relative">
                       <Users className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
-                      <Select onValueChange={(value) => handleInputChange("className", value)} required>
+                      <Select
+                        onValueChange={(value) =>
+                          handleInputChange("className", value)
+                        }
+                        required
+                      >
                         <SelectTrigger className="pl-10">
                           <SelectValue placeholder="Select class" />
                         </SelectTrigger>
@@ -266,12 +391,17 @@ export const TakeAttendance = () => {
                       </Select>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="semester">Semester</Label>
                     <div className="relative">
                       <GraduationCap className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
-                      <Select onValueChange={(value) => handleInputChange("semester", value)} required>
+                      <Select
+                        onValueChange={(value) =>
+                          handleInputChange("semester", value)
+                        }
+                        required
+                      >
                         <SelectTrigger className="pl-10">
                           <SelectValue placeholder="Select semester" />
                         </SelectTrigger>
@@ -286,7 +416,7 @@ export const TakeAttendance = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="date">Date</Label>
                   <div className="relative">
@@ -295,13 +425,15 @@ export const TakeAttendance = () => {
                       id="date"
                       type="date"
                       value={formData.date}
-                      onChange={(e) => handleInputChange("date", e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("date", e.target.value)
+                      }
                       className="pl-10"
                       required
                     />
                   </div>
                 </div>
-                
+
                 <Button
                   type="submit"
                   variant="hero"
@@ -309,7 +441,9 @@ export const TakeAttendance = () => {
                   className="w-full"
                   disabled={isLoading}
                 >
-                  {isLoading ? "Creating Session..." : "Generate QR Code & Link"}
+                  {isLoading
+                    ? "Creating Session..."
+                    : "Generate QR Code & Link"}
                 </Button>
               </form>
             </CardContent>
