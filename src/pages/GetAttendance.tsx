@@ -3,17 +3,61 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Header } from "@/components/Header";
-import { Download, RotateCcw, ArrowLeft, FileSpreadsheet, X, Eye, FileDown, Search, Filter, Calendar, Users, TrendingUp, RefreshCw } from "lucide-react";
+import {
+  Download,
+  RotateCcw,
+  ArrowLeft,
+  FileSpreadsheet,
+  X,
+  Eye,
+  FileDown,
+  Search,
+  Filter,
+  Calendar,
+  Users,
+  TrendingUp,
+  RefreshCw,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { API_ENDPOINTS } from "@/config/api";
-import * as XLSX from 'xlsx';
+import * as XLSX from "xlsx";
 
 interface AttendanceRecord {
   id: number;
@@ -29,7 +73,8 @@ export const GetAttendance = () => {
     division: "",
     timeSlot: "",
     semester: "",
-    date: ""
+    date: "",
+    classType: "",
   });
   const [teacherName, setTeacherName] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,7 +95,7 @@ export const GetAttendance = () => {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('teacherInfo');
+      const stored = localStorage.getItem("teacherInfo");
       if (stored) {
         const parsed = JSON.parse(stored);
         setTeacherName(parsed?.name);
@@ -58,19 +103,39 @@ export const GetAttendance = () => {
     } catch {}
   }, []);
 
+  // Reset time slot when class type changes
+  useEffect(() => {
+    setFormData((prev) => ({ ...prev, timeSlot: "" }));
+  }, [formData.classType]);
+
+  // Build time slot options based on class type
+  const timeSlotOptions = useMemo(() => {
+    if (formData.classType === "Lab") {
+      return ["9:10 to 11:10", "12:10 to 2:10", "2:20 to 4:20"];
+    }
+    return [
+      "9:10 to 10:10",
+      "10:10 to 11:10",
+      "12:10 to 1:10",
+      "1:10 to 2:10",
+      "2:20 to 3:20",
+      "3:20 to 4:20",
+    ];
+  }, [formData.classType]);
+
   const handleFetch = async () => {
     setIsLoading(true);
     try {
       const response = await fetch(API_ENDPOINTS.GET_ATTENDANCE, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
         setAttendanceData(result.data);
         toast({
@@ -99,17 +164,17 @@ export const GetAttendance = () => {
     setIsRemoving(id);
     try {
       const response = await fetch(API_ENDPOINTS.REMOVE_ATTENDANCE, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ id })
+        body: JSON.stringify({ id }),
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
-        setAttendanceData(prev => prev.filter(record => record.id !== id));
+        setAttendanceData((prev) => prev.filter((record) => record.id !== id));
         toast({
           title: "Record Removed!",
           description: "Attendance record has been deleted successfully",
@@ -170,27 +235,27 @@ export const GetAttendance = () => {
     setIsResetting(true);
     try {
       // Get teacher info from localStorage
-      const teacherInfo = localStorage.getItem('teacherInfo');
+      const teacherInfo = localStorage.getItem("teacherInfo");
       if (!teacherInfo) {
-        throw new Error('Teacher information not found');
+        throw new Error("Teacher information not found");
       }
 
       const teacherData = JSON.parse(teacherInfo);
-      
+
       // Verify password by attempting to login
       const response = await fetch(API_ENDPOINTS.TEACHER_LOGIN, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           email: teacherData.email,
-          password: password
-        })
+          password: password,
+        }),
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
         // Password is correct, now delete attendance records
         await deleteAttendanceRecords();
@@ -222,20 +287,20 @@ export const GetAttendance = () => {
         division: formData.division,
         timeSlot: formData.timeSlot,
         semester: formData.semester,
-        date: formData.date
+        date: formData.date,
       };
 
       // Use the bulk deletion endpoint
       const response = await fetch(API_ENDPOINTS.DELETE_ATTENDANCE_BULK, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(filterParams)
+        body: JSON.stringify(filterParams),
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
         // Reset local state
         setFormData({
@@ -243,13 +308,14 @@ export const GetAttendance = () => {
           division: "",
           timeSlot: "",
           semester: "",
-          date: ""
+          date: "",
+          classType: "",
         });
         setAttendanceData([]);
         setSearchTerm("");
         setSortBy("date");
         setSortOrder("desc");
-        
+
         toast({
           title: "Records Deleted!",
           description: `${result.deletedCount} attendance records have been permanently deleted from the database`,
@@ -273,18 +339,18 @@ export const GetAttendance = () => {
   // Computed properties for better performance
   const filteredAndSortedData = useMemo(() => {
     let filtered = attendanceData;
-    
+
     // Apply search filter
     if (searchTerm) {
-      filtered = filtered.filter(record => 
+      filtered = filtered.filter((record) =>
         record.student_id.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    
+
     // Apply sorting
     filtered.sort((a, b) => {
       let aValue, bValue;
-      
+
       if (sortBy === "date") {
         aValue = new Date(a.attendance_time).getTime();
         bValue = new Date(b.attendance_time).getTime();
@@ -292,24 +358,24 @@ export const GetAttendance = () => {
         aValue = a.student_id;
         bValue = b.student_id;
       }
-      
+
       if (sortOrder === "asc") {
         return aValue > bValue ? 1 : -1;
       } else {
         return aValue < bValue ? 1 : -1;
       }
     });
-    
+
     return filtered;
   }, [attendanceData, searchTerm, sortBy, sortOrder]);
 
   const attendanceStats = useMemo(() => {
     const total = attendanceData.length;
-    const today = new Date().toISOString().split('T')[0];
-    const todayCount = attendanceData.filter(record => 
-      record.date === today
+    const today = new Date().toISOString().split("T")[0];
+    const todayCount = attendanceData.filter(
+      (record) => record.date === today
     ).length;
-    
+
     return { total, today: todayCount };
   }, [attendanceData]);
 
@@ -325,8 +391,8 @@ export const GetAttendance = () => {
 
     // Create worksheet data with index and present number (student ID)
     const worksheetData = attendanceData.map((record, index) => ({
-      'Index': index + 1,
-      'Present Number': record.student_id
+      Index: index + 1,
+      "Present Number": record.student_id,
     }));
 
     // Create workbook and worksheet
@@ -334,16 +400,16 @@ export const GetAttendance = () => {
     const worksheet = XLSX.utils.json_to_sheet(worksheetData);
 
     // Set column widths
-    worksheet['!cols'] = [
+    worksheet["!cols"] = [
       { width: 15 }, // Index
-      { width: 20 }  // Present Number
+      { width: 20 }, // Present Number
     ];
 
     // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance");
 
     // Generate filename with current date
-    const currentDate = new Date().toISOString().split('T')[0];
+    const currentDate = new Date().toISOString().split("T")[0];
     const filename = `attendance_${currentDate}.xlsx`;
 
     // Download the file
@@ -357,20 +423,24 @@ export const GetAttendance = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5">
-      <Header 
-        title="Get Attendance" 
-        userRole="teacher" 
+      <Header
+        title="Get Attendance"
+        userRole="teacher"
         userName={teacherName}
         onLogout={() => navigate("/login")}
       />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <Button onClick={handleBack} variant="outline" className="flex items-center gap-2">
+          <Button
+            onClick={handleBack}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
           </Button>
-          
+
           {attendanceData.length > 0 && (
             <div className="flex items-center gap-4">
               <Badge variant="secondary" className="flex items-center gap-1">
@@ -384,7 +454,7 @@ export const GetAttendance = () => {
             </div>
           )}
         </div>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm">
             <CardHeader className="border-b border-gray-100">
@@ -394,10 +464,31 @@ export const GetAttendance = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div>
+                <Label>Class Type</Label>
+                <Select
+                  value={formData.classType}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, classType: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select class type" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="Lecture">Lecture</SelectItem>
+                    <SelectItem value="Lab">Lab</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label>Department</Label>
-                  <Select onValueChange={(value) => setFormData({...formData, department: value})}>
+                  <Select
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, department: value })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
@@ -410,15 +501,29 @@ export const GetAttendance = () => {
                 </div>
                 <div>
                   <Label>Division</Label>
-                  <Select onValueChange={(value) => setFormData({...formData, division: value})}>
+                  <Select
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, division: value })
+                    }
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder={formData.department ? "Select division" : "Select department first"} />
+                      <SelectValue
+                        placeholder={
+                          formData.department
+                            ? "Select division"
+                            : "Select department first"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent className="bg-white">
                       {formData.department && (
                         <>
-                          <SelectItem value={`${formData.department} 1`}>{`${formData.department} 1`}</SelectItem>
-                          <SelectItem value={`${formData.department} 2`}>{`${formData.department} 2`}</SelectItem>
+                          <SelectItem
+                            value={`${formData.department} 1`}
+                          >{`${formData.department} 1`}</SelectItem>
+                          <SelectItem
+                            value={`${formData.department} 2`}
+                          >{`${formData.department} 2`}</SelectItem>
                         </>
                       )}
                     </SelectContent>
@@ -429,50 +534,74 @@ export const GetAttendance = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label>Time Slot</Label>
-                  <Select onValueChange={(value) => setFormData({...formData, timeSlot: value})}>
+                  <Select
+                    value={formData.timeSlot}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, timeSlot: value })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select time slot" />
                     </SelectTrigger>
                     <SelectContent className="bg-white">
-                      <SelectItem value="9:10 to 10:10">9:10 to 10:10</SelectItem>
-                      <SelectItem value="10:10 to 11:10">10:10 to 11:10</SelectItem>
-                      <SelectItem value="12:10 to 1:10">12:10 to 1:10</SelectItem>
-                      <SelectItem value="1:10 to 2:10">1:10 to 2:10</SelectItem>
-                      <SelectItem value="2:20 to 3:20">2:20 to 3:20</SelectItem>
-                      <SelectItem value="3:20 to 4:20">3:20 to 4:20</SelectItem>
+                      {timeSlotOptions.map((slot) => (
+                        <SelectItem key={slot} value={slot}>
+                          {slot}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label>Semester</Label>
-                  <Select onValueChange={(value) => setFormData({...formData, semester: value})}>
+                  <Select
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, semester: value })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select semester" />
                     </SelectTrigger>
                     <SelectContent className="bg-white">
                       {Array.from({ length: 8 }).map((_, i) => (
-                        <SelectItem key={i+1} value={`${i+1}`}>Semester {i+1}</SelectItem>
+                        <SelectItem key={i + 1} value={`${i + 1}`}>
+                          Semester {i + 1}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              <Input type="date" onChange={(e) => setFormData({...formData, date: e.target.value})} />
-              
+              <Input
+                type="date"
+                onChange={(e) =>
+                  setFormData({ ...formData, date: e.target.value })
+                }
+              />
+
               <div className="flex gap-4">
-                <Button onClick={handleFetch} variant="hero" className="flex-1" disabled={isLoading}>
+                <Button
+                  onClick={handleFetch}
+                  variant="hero"
+                  className="flex-1"
+                  disabled={isLoading}
+                >
                   <Download className="h-4 w-4 mr-2" />
                   {isLoading ? "Fetching..." : "Fetch"}
                 </Button>
-                <Button onClick={handleResetClick} variant="destructive" className="flex-1">
+                <Button
+                  onClick={handleResetClick}
+                  variant="destructive"
+                  className="flex-1"
+                >
                   <RotateCcw className="h-4 w-4 mr-2" />
                   Reset Data
                 </Button>
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm">
             <CardHeader>
               <CardTitle>Attendance Summary</CardTitle>
@@ -488,7 +617,9 @@ export const GetAttendance = () => {
                 <div className="bg-green-50 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <span>Present</span>
-                    <span className="font-bold text-green-600">{attendanceStats.total}</span>
+                    <span className="font-bold text-green-600">
+                      {attendanceStats.total}
+                    </span>
                   </div>
                 </div>
                 <div className="bg-red-50 rounded-lg p-4">
@@ -501,7 +632,7 @@ export const GetAttendance = () => {
             </CardContent>
           </Card>
         </div>
-        
+
         {/* Attendance Table */}
         {attendanceData.length > 0 && (
           <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm mt-8">
@@ -521,7 +652,12 @@ export const GetAttendance = () => {
                       className="pl-10 w-64"
                     />
                   </div>
-                  <Select value={sortBy} onValueChange={(value: "date" | "student_id") => setSortBy(value)}>
+                  <Select
+                    value={sortBy}
+                    onValueChange={(value: "date" | "student_id") =>
+                      setSortBy(value)
+                    }
+                  >
                     <SelectTrigger className="w-40">
                       <SelectValue />
                     </SelectTrigger>
@@ -533,10 +669,16 @@ export const GetAttendance = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                    onClick={() =>
+                      setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                    }
                     className="flex items-center gap-1"
                   >
-                    <RefreshCw className={`h-4 w-4 ${sortOrder === "desc" ? "rotate-180" : ""}`} />
+                    <RefreshCw
+                      className={`h-4 w-4 ${
+                        sortOrder === "desc" ? "rotate-180" : ""
+                      }`}
+                    />
                     {sortOrder === "asc" ? "Asc" : "Desc"}
                   </Button>
                 </div>
@@ -555,16 +697,17 @@ export const GetAttendance = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredAndSortedData.map((record, index) => (
-                    <TableRow key={record.id} className="hover:bg-gray-50 transition-colors">
+                    <TableRow
+                      key={record.id}
+                      className="hover:bg-gray-50 transition-colors"
+                    >
                       <TableCell className="font-medium text-center">
                         <Badge variant="outline" className="font-mono">
                           {index + 1}
                         </Badge>
                       </TableCell>
                       <TableCell className="font-mono text-sm">
-                        <Badge variant="secondary">
-                          {record.student_id}
-                        </Badge>
+                        <Badge variant="secondary">{record.student_id}</Badge>
                       </TableCell>
                       <TableCell>
                         <Button
@@ -577,13 +720,16 @@ export const GetAttendance = () => {
                         </Button>
                       </TableCell>
                       <TableCell className="text-sm text-gray-600">
-                        {new Date(record.attendance_time).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                        {new Date(record.attendance_time).toLocaleDateString(
+                          "en-US",
+                          {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }
+                        )}
                       </TableCell>
                       <TableCell>
                         <Button
@@ -607,7 +753,7 @@ export const GetAttendance = () => {
             </CardContent>
           </Card>
         )}
-        
+
         {/* Download Excel Button */}
         {attendanceData.length > 0 && (
           <div className="mt-8 flex justify-center">
@@ -623,11 +769,12 @@ export const GetAttendance = () => {
                     Export Attendance Data
                   </h3>
                   <p className="text-sm text-gray-600 mb-4">
-                    Download an Excel file with {filteredAndSortedData.length} attendance records
+                    Download an Excel file with {filteredAndSortedData.length}{" "}
+                    attendance records
                   </p>
-                  <Button 
-                    onClick={handleDownloadExcel} 
-                    variant="default" 
+                  <Button
+                    onClick={handleDownloadExcel}
+                    variant="default"
                     size="lg"
                     className="bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
                   >
@@ -640,7 +787,7 @@ export const GetAttendance = () => {
           </div>
         )}
       </div>
-      
+
       {/* Image Modal */}
       {selectedImage && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -651,13 +798,17 @@ export const GetAttendance = () => {
                   <Eye className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Student Selfie</h3>
-                  <p className="text-sm text-gray-500">Attendance verification image</p>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Student Selfie
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Attendance verification image
+                  </p>
                 </div>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleCloseImage}
                 className="hover:bg-gray-50"
               >
@@ -665,9 +816,9 @@ export const GetAttendance = () => {
               </Button>
             </div>
             <div className="p-6">
-              <img 
-                src={selectedImage} 
-                alt="Student selfie" 
+              <img
+                src={selectedImage}
+                alt="Student selfie"
                 className="w-full h-auto rounded-lg shadow-lg border border-gray-200"
               />
             </div>
@@ -684,15 +835,16 @@ export const GetAttendance = () => {
               Warning: Delete Attendance Records
             </AlertDialogTitle>
             <AlertDialogDescription className="text-gray-700">
-              Are you sure you want to permanently delete all attendance records for this session? 
-              This action cannot be undone and will remove {attendanceData.length} records from the database.
+              Are you sure you want to permanently delete all attendance records
+              for this session? This action cannot be undone and will remove{" "}
+              {attendanceData.length} records from the database.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-gray-100 hover:bg-gray-200">
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleResetConfirm}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
@@ -711,7 +863,8 @@ export const GetAttendance = () => {
               Verify Your Password
             </DialogTitle>
             <DialogDescription>
-              Please enter your account password to confirm the deletion of attendance records.
+              Please enter your account password to confirm the deletion of
+              attendance records.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
