@@ -28,7 +28,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
@@ -45,7 +44,6 @@ import {
   ArrowLeft,
   FileSpreadsheet,
   X,
-  Eye,
   FileDown,
   Search,
   Filter,
@@ -80,7 +78,6 @@ export const GetAttendance = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
   const [isRemoving, setIsRemoving] = useState<number | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"date" | "student_id">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -197,13 +194,7 @@ export const GetAttendance = () => {
     }
   };
 
-  const handleViewImage = (selfie: string) => {
-    setSelectedImage(selfie);
-  };
-
-  const handleCloseImage = () => {
-    setSelectedImage(null);
-  };
+  // Inline selfie display; no modal needed
 
   const handleResetClick = () => {
     if (attendanceData.length === 0) {
@@ -710,14 +701,11 @@ export const GetAttendance = () => {
                         <Badge variant="secondary">{record.student_id}</Badge>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewImage(record.selfie)}
-                          className="h-8 w-8 p-0 hover:bg-blue-50 hover:border-blue-200"
-                        >
-                          <Eye className="h-4 w-4 text-blue-600" />
-                        </Button>
+                        <img
+                          src={record.selfie}
+                          alt="Student selfie"
+                          className="h-32 w-32 object-cover rounded-md border border-gray-200"
+                        />
                       </TableCell>
                       <TableCell className="text-sm text-gray-600">
                         {new Date(record.attendance_time).toLocaleDateString(
@@ -788,43 +776,7 @@ export const GetAttendance = () => {
         )}
       </div>
 
-      {/* Image Modal */}
-      {selectedImage && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-full">
-                  <Eye className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Student Selfie
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    Attendance verification image
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCloseImage}
-                className="hover:bg-gray-50"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="p-6">
-              <img
-                src={selectedImage}
-                alt="Student selfie"
-                className="w-full h-auto rounded-lg shadow-lg border border-gray-200"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Inline selfie display replaces modal */}
 
       {/* Reset Confirmation Dialog */}
       <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
