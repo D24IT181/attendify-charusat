@@ -19,6 +19,8 @@ import QRCode from "react-qr-code";
 
 export const QRCodePage = () => {
   const [attendanceCount, setAttendanceCount] = useState(0);
+  const [totalEligible, setTotalEligible] = useState<number | null>(null);
+  const [remainingCount, setRemainingCount] = useState<number | null>(null);
   const [isLinkCopied, setIsLinkCopied] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [showSessionForm, setShowSessionForm] = useState(true);
@@ -98,6 +100,7 @@ export const QRCodePage = () => {
         date: sessionData.date || "",
         lectureType: sessionData.lectureType || "",
         timeSlot: sessionData.timeSlot || "",
+        sem: sessionData.semester || "",
       });
 
       const response = await fetch(
@@ -106,7 +109,13 @@ export const QRCodePage = () => {
       const data = await response.json();
 
       if (data.success) {
-        setAttendanceCount(data.attendance_summary.total_present);
+        // Use unique students for present count to avoid duplicates
+        const present = data.attendance_summary.unique_students ?? data.attendance_summary.total_present;
+        setAttendanceCount(present);
+        const eligible = data.attendance_summary.total_eligible ?? null;
+        const remaining = data.attendance_summary.remaining ?? (eligible !== null ? Math.max(0, eligible - present) : null);
+        setTotalEligible(eligible);
+        setRemainingCount(remaining);
         setRecentAttendance(data.recent_attendance || []);
         setLastUpdated(data.last_updated || "");
       } else {
@@ -138,7 +147,7 @@ export const QRCodePage = () => {
   }, [sessionData]);
 
   const handleBack = () => {
-    navigate("/admin-dashboard");
+    navigate("/teacher-dashboard");
   };
 
   const handleCreateSession = async (e: React.FormEvent) => {
@@ -576,22 +585,43 @@ export const QRCodePage = () => {
               <Card className="shadow-xl border-0 bg-gradient-to-br from-green-500 to-green-600 text-white">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm opacity-90">Students Present</p>
-                      <p className="text-4xl font-bold">
-                        {isLoadingCount ? (
-                          <div className="animate-pulse">...</div>
-                        ) : (
-                          attendanceCount
+                    <div className="flex-1">
+                      <div className="grid grid-cols-2 gap-6">
+                        <div>
+                          <p className="text-sm opacity-90">Students Present</p>
+                          <p className="text-4xl font-bold">
+                            {isLoadingCount ? (
+                              <div className="animate-pulse">...</div>
+                            ) : (
+                              attendanceCount
+                            )}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm opacity-90">Remaining Students</p>
+                          <p className="text-4xl font-bold">
+                            {isLoadingCount ? (
+                              <div className="animate-pulse">...</div>
+                            ) : remainingCount !== null ? (
+                              remainingCount
+                            ) : (
+                              "—"
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-sm opacity-75">
+                          {lastUpdated
+                            ? `Last updated: ${new Date(lastUpdated).toLocaleTimeString()}`
+                            : "Live count updating..."}
+                        </p>
+                        {totalEligible !== null && (
+                          <p className="text-sm opacity-90 mt-1">
+                            Total Eligible: {totalEligible}
+                          </p>
                         )}
-                      </p>
-                      <p className="text-sm opacity-75">
-                        {lastUpdated
-                          ? `Last updated: ${new Date(
-                              lastUpdated
-                            ).toLocaleTimeString()}`
-                          : "Live count updating..."}
-                      </p>
+                      </div>
                     </div>
                     <div className="flex flex-col items-center gap-2">
                       <Users className="h-16 w-16 opacity-80" />
@@ -619,20 +649,29 @@ export const QRCodePage = () => {
                 </CardHeader>
                 <CardContent>
                   {recentAttendance.length > 0 ? (
-                    <div className="space-y-3 max-h-48 overflow-y-auto">
+                    <div className="space-y-3 max-h-72 overflow-y-auto">
                       {recentAttendance.map((record, index) => (
                         <div
                           key={index}
-                          className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                         >
-                          <div className="flex-1">
+                          <div className="flex items-center gap-4 flex-1">
+                            {record.selfie ? (
+                              <img
+                                src={record.selfie}
+                                alt={record.student_id}
+                                className="rounded-md border border-gray-200 w-20 h-16 object-cover"
+                              />
+                            ) : (
+                              <div className="w-20 h-16 bg-gray-200 rounded-md flex items-center justify-center text-xs text-gray-500">
+                                No image
+                              </div>
+                            )}
                             <p className="text-sm font-medium text-gray-900">
                               {record.student_id}
                             </p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(
-                                record.attendance_time
-                              ).toLocaleTimeString()}
+                            <p className="text-xs text-gray-500 ml-auto">
+                              {new Date(record.attendance_time).toLocaleTimeString()}
                             </p>
                           </div>
                           <div className="text-right">

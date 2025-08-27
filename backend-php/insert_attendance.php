@@ -82,8 +82,61 @@ try {
         respond_json(403, ['success' => false, 'error' => 'Student is inactive. Contact admin.']);
     }
 
-    // Optional: previously enforced strict matching of department/division/semester.
-    // Relaxed per request: proceed even if they differ. You can re-enable strict matching later if needed.
+    // Enforce student belongs to the requested session (department, division, semester)
+    $studentDepartment = strtoupper((string)$studentRow['department']);
+    $studentDivision = (string)$studentRow['division'];
+    $studentSemester = (int)$studentRow['semester'];
+    
+    // Normalize division comparison to allow values like "IT 2" vs "2"
+    $normalizeDivision = function($value) {
+        $v = trim((string)$value);
+        // Prefer numeric division if present
+        $digits = preg_replace('/[^0-9]/', '', $v);
+        if ($digits !== '') {
+            return ltrim($digits, '0');
+        }
+        // Fallback to uppercased, spaceless text
+        return strtoupper(preg_replace('/\s+/', '', $v));
+    };
+    
+    $sessionDivisionNorm = $normalizeDivision($division);
+    $studentDivisionNorm = $normalizeDivision($studentDivision);
+
+    if ($studentDepartment !== strtoupper($dept) || $studentDivisionNorm !== $sessionDivisionNorm || $studentSemester !== (int)$sem) {
+        respond_json(403, [
+            'success' => false,
+            'error' => 'Student is not eligible for this session (department/division/semester mismatch)'
+        ]);
+    }
+
+    // Prevent duplicate attendance for the same session by the same student
+    $dupCheckSql = 'SELECT 1 FROM `attendance_records`
+                    WHERE student_id = :student_id
+                      AND date = :date
+                      AND dept = :dept
+                      AND division = :division
+                      AND sem = :sem
+                      AND timeslot = :timeslot
+                      AND MOT = :mot
+                      AND subject = :subject
+                    LIMIT 1';
+    $dupStmt = $pdo->prepare($dupCheckSql);
+    $dupStmt->execute([
+        ':student_id' => $student_id,
+        ':date' => $date,
+        ':dept' => $dept,
+        ':division' => $division,
+        ':sem' => (int)$sem,
+        ':timeslot' => $timeslot,
+        ':mot' => $mot,
+        ':subject' => $subject,
+    ]);
+    if ($dupStmt->fetchColumn()) {
+        respond_json(409, [
+            'success' => false,
+            'error' => 'Attendance already recorded for this session'
+        ]);
+    }
 
     // Insert into database
     $sql = 'INSERT INTO `attendance_records` (`MOT`, `timeslot`, `dept`, `division`, `subject`, `faculty_name`, `sem`, `date`, `student_id`, `selfie`, `gmail`) VALUES (:mot, :timeslot, :dept, :division, :subject, :faculty_name, :sem, :date, :student_id, :selfie, :gmail)';

@@ -14,6 +14,8 @@ $division = trim((string)($_GET['division'] ?? ''));
 $date = trim((string)($_GET['date'] ?? date('Y-m-d')));
 $lectureType = trim((string)($_GET['lectureType'] ?? ''));
 $timeSlot = trim((string)($_GET['timeSlot'] ?? ''));
+// Optional semester filter for accurate counts
+$sem = trim((string)($_GET['sem'] ?? ''));
 
 // At least subject and date are required
 if ($subject === '' || $date === '') {
@@ -40,6 +42,11 @@ try {
     if ($division !== '') {
         $whereConditions[] = 'division = :division';
         $params[':division'] = $division;
+    }
+
+    if ($sem !== '') {
+        $whereConditions[] = 'sem = :sem';
+        $params[':sem'] = (int)$sem;
     }
     
     if ($date !== '') {
@@ -78,6 +85,7 @@ try {
     $recentSql = "SELECT 
                      student_id,
                      gmail,
+                     selfie,
                      attendance_time,
                      MOT,
                      timeslot
@@ -90,6 +98,40 @@ try {
     $recentStmt->execute($params);
     $recentRecords = $recentStmt->fetchAll();
     
+    // Compute total eligible students for this session (department/division/semester)
+    $totalEligible = null;
+    if ($dept !== '' && $division !== '' && $sem !== '') {
+        // Normalize division similarly to submission matching: prefer numeric part
+        $normalizeDivision = function($value) {
+            $v = trim((string)$value);
+            $digits = preg_replace('/[^0-9]/', '', $v);
+            if ($digits !== '') {
+                return ltrim($digits, '0');
+            }
+            return strtoupper(preg_replace('/\s+/', '', $v));
+        };
+        $normalizedDivision = $normalizeDivision($division);
+
+        $eligibleSql = "SELECT COUNT(*) AS total_eligible
+                         FROM students
+                         WHERE department = :dept_elig
+                           AND semester = :sem_elig
+                           AND is_active = 1
+                           AND (
+                                division = :div_elig
+                                OR REPLACE(UPPER(division), ' ', '') = :div_text_elig
+                           )";
+        $eligibleStmt = $pdo->prepare($eligibleSql);
+        $eligibleStmt->execute([
+            ':dept_elig' => strtoupper($dept),
+            ':sem_elig' => (int)$sem,
+            ':div_elig' => $normalizedDivision,
+            ':div_text_elig' => $normalizedDivision
+        ]);
+        $eligibleRow = $eligibleStmt->fetch();
+        $totalEligible = (int)($eligibleRow['total_eligible'] ?? 0);
+    }
+
     // Get department-wise breakdown if department is specified
     $deptBreakdown = null;
     if ($dept === '') {
@@ -112,10 +154,13 @@ try {
             'total_present' => (int)$countResult['total_present'],
             'unique_students' => (int)$countResult['unique_students'],
             'total_subjects' => (int)$countResult['total_subjects'],
+            'total_eligible' => $totalEligible,
+            'remaining' => $totalEligible !== null ? max(0, $totalEligible - (int)$countResult['unique_students']) : null,
             'date' => $date,
             'subject' => $subject,
             'department' => $dept,
             'division' => $division,
+            'semester' => $sem,
             'lecture_type' => $lectureType,
             'time_slot' => $timeSlot
         ],

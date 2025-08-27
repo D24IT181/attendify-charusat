@@ -704,7 +704,7 @@ export const GetAttendance = () => {
                         <img
                           src={record.selfie}
                           alt="Student selfie"
-                          className="h-32 w-32 object-cover rounded-md border border-gray-200"
+                          className="h-60 w-60 object-cover rounded-md border border-gray-200"
                         />
                       </TableCell>
                       <TableCell className="text-sm text-gray-600">
